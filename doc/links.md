@@ -16,6 +16,8 @@
   paper](https://www.sciencedirect.com/science/article/pii/S2213133715000645)
   - an example of a format where binary data is binary, but metadata is text, and human-readable.
 * See Chris' and Matt's ITK / Nibabel discussion above.
+* [Planning for data formats mailing list
+  discussion](https://mail.python.org/pipermail/neuroimaging/2021-November/002365.html)
 
 ## Metadata
 
