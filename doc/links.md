@@ -64,12 +64,49 @@ See [Zarr.dev](https://zarr.dev) — "Zarr is a community project to develop
 specifications and software for storage of large N-dimensional typed arrays,
 also commonly known as tensors.".
 
-"Zarr is a file storage format for chunked, compressed, N-dimensional arrays
-based on an open-source specification." — [Zarr
-docs](https://zarr.readthedocs.io).
+But — this is a bit deceptive.  Zarr is a library that provides an API to
+array-like things that can live on a wide range of storage backends — and
+which you can slice like ordinary Numpy arrays: "Zarr provides classes and
+functions for working with N-dimensional arrays that behave like NumPy
+arrays but whose data is divided into chunks and each chunk is compressed."
+[Zarr tutorial](https://zarr.readthedocs.io/en/stable/tutorial.html). It
+defines a protocol to use for reading and writing such arrays — a *backend*
+protocol.  It also defines a default backend and storage format.  This
+specific storage format is what the docs mean when they say: "Zarr is a file
+storage format for chunked, compressed, N-dimensional arrays based on an
+open-source specification." — [Zarr docs](https://zarr.readthedocs.io).  But
+you can also use the Zarr API to write to many other formats, or a format
+you define yourself.
 
-* [Zarr V3
-  spec](https://zarr-specs.readthedocs.io/en/latest/v3/core/v3.0.html)
+The Zarr default storage format, is currently in version 2, but soon to be
+update to version 3. The [Zarr V3
+spec](https://zarr-specs.readthedocs.io/en/latest/v3/core/v3.0.html)
+
+The Zarr API conceives data as
+a [hierarchy](https://zarr-specs.readthedocs.io/en/latest/v3/core/v3.0.html#hierarchy),
+very much like the groups and arrays in HDF5 (and you can use HDF5 as a Zarr
+backend).
+
+> A Zarr hierarchy is a tree structure, where each node in the tree is
+either a group or an array. Group nodes may have children but array nodes
+may not. All nodes in a hierarchy have a name and a path. The root of a Zarr
+hierarchy may be either a group or an array. In the latter case, the
+hierarchy consists of just the single array.
+
+There are many other [storage formats than Zarr can
+use](https://zarr.readthedocs.io/en/stable/tutorial.html#storage-alternatives).
+
+## ASDF
+
+* [ASDF format
+  paper](https://www.sciencedirect.com/science/article/pii/S2213133715000645)
+  — an example of a format where binary data is binary, but metadata is
+  text, and human-readable.
+* [Docs for ASDF](https://asdf-standard.readthedocs.io/en/latest/)
+* [Zarr backend for
+  ASDF](https://github.com/braingram/asdf_zarr/tree/deferred_block)
+* [ASDF plugin for Zarr](https://github.com/asdf-format/asdf-zarr)
+* [Zarr / ASDF issue](https://github.com/asdf-format/asdf/issues/718)
 
 ## Other formats
 
@@ -84,10 +121,30 @@ docs](https://zarr.readthedocs.io).
 * [Importance or otherwise of virtual memory for image format](https://github.com/orgs/open-dicom/discussions/4)
 * [Image compression](https://github.com/orgs/open-dicom/discussions/2)
 
-## ASDF
+## Dask
 
-* [ASDF format
-  paper](https://www.sciencedirect.com/science/article/pii/S2213133715000645)
-  — an example of a format where binary data is binary, but metadata is
-  text, and human-readable.
-* [Docs for ASDF](https://asdf-standard.readthedocs.io/en/latest/)
+[Distributed computing for arrays](https://docs.dask.org/en/stable/index.html):
+
+> Dask is a flexible library for parallel computing in Python.
+>
+> Dask is composed of two parts:
+>
+> Dynamic task scheduling optimized for computation. This is similar to
+Airflow, Luigi, Celery, or Make, but optimized for interactive computational
+workloads.
+>
+> “Big Data” collections like parallel arrays, dataframes, and lists that
+extend common interfaces like NumPy, Pandas, or Python iterators to
+larger-than-memory or distributed environments. These parallel collections run
+on top of dynamic task schedulers.
+
+## Xarray
+
+[Xarray](https://docs.xarray.dev).
+
+> Xarray introduces labels in the form of dimensions, coordinates and attributes on top of raw NumPy-like multidimensional arrays, which allows for a more intuitive, more concise, and less error-prone developer experience.
+
+[Xarray and Dask](https://docs.xarray.dev/en/stable/user-guide/dask.html)
+
+[Xarray and
+Zarr](https://docs.xarray.dev/en/stable/generated/xarray.Dataset.to_zarr.html)
