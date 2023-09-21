@@ -8,5 +8,5 @@ For example:
 * netCDF4 (IO)
 * zarr (IO)
 * Scipy (interpolation)
-* bottleneck (NaN processing; note: no wheels)
+* bottleneck (NaN processing)
 * dask (parallel processing)
