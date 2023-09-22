@@ -14,3 +14,11 @@ git clone https://github.com/matthew-brett/xibabel
 cd xibabel
 flit install
 ```
+## Testing data
+
+Some of the example notebooks refer to data that are available as git
+submodules, so you'll need to grab those.
+
+```
+git submodule update --init
+```
