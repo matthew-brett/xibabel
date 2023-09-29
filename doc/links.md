@@ -148,3 +148,11 @@ on top of dynamic task schedulers.
 
 [Xarray and
 Zarr](https://docs.xarray.dev/en/stable/generated/xarray.Dataset.to_zarr.html)
+
+## Visualization
+
+Links mainly from OME-Zarr paper:
+
+* [AGAVE viewer](https://www.allencell.org/pathtrace-rendering.html) - C++ / QT
+  desktop viewer.
+* [ITKwidgets](
