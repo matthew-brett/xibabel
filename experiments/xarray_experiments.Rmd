@@ -1,0 +1,379 @@
+---
+jupyter:
+  jupytext:
+    notebook_metadata_filter: all,-language_info
+    split_at_heading: true
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.15.2
+  kernelspec:
+    display_name: Python 3 (ipykernel)
+    language: python
+    name: python3
+---
+
+## Requirements
+
+Optionally execute the next cell to ensure you have the packages necessary to run this notebook, and also to run `git submodule update --init` to get the data we'll refer to, in case you have not already done that.
+
+```{python}
+# %pip -q install dicom_parser matplotlib ipywidgets xarray zarr
+# !git submodule update --init
+```
+
+# Anatomical scan
+
+```{python}
+from dicom_parser import Series
+```
+
+```{python}
+anat_series = Series('../testing/insular-dicoms/DICOM_1/Anatomy')
+anat_series
+```
+
+How many images?
+
+```{python}
+len(anat_series)
+```
+
+```{python}
+anat_series.data.shape
+```
+
+```{python}
+import nibabel as nib
+```
+
+```{python}
+slice1 = anat_series[0]
+slice1
+```
+
+```{python}
+slice1.affine
+```
+
+```{python}
+import matplotlib.pyplot as plt
+
+plt.imshow(slice1.data, cmap="gray", origin="lower")
+```
+
+Let's take a look at the data
+
+```{python}
+from ipywidgets import interact
+
+@interact(i=(0,len(anat_series)-1))
+def show_slice(i):
+    return plt.imshow(anat_series[i].data, cmap="gray")
+```
+
+```{python}
+anat_series.data.shape
+```
+
+Looking at the slices, let's call these dimensions 
+
+`(y, z, x)`
+
+Which means that if we take the middle `x` value, $ \lfloor \frac{384}{2} \rfloor = 192$, we should see a sagittal plane image.
+
+```{python}
+plt.imshow(anat_series[192].data, cmap="gray")
+```
+
+# Functional BOLD fMRI scan
+
+
+Let's now open some BOLD scans.
+
+
+`dicom_parser` demands reading only `.dcm` or `.img` files and the data sample in [datalad/example-dicom-functional](https://github.com/datalad/example-dicom-functional) stores the files without an extension. There might be a better way of doing this, but it got the job done. (Equivalent of shell  `for x in *; do ln -s $x $x.dcm; done` in that directory.
+
+```{python}
+import glob
+
+if glob.glob("../testing/example-dicom-functional/dicoms/*.dcm") == []:
+    for f in glob.glob("../testing/example-dicom-functional/dicoms/*"):
+        os.link(f, f+".dcm")
+```
+
+```{python}
+bold_series = Series('../testing/example-dicom-functional/dicoms')
+
+```
+
+```{python}
+bold_series.data.shape
+```
+
+```{python}
+len(bold_series)
+```
+
+This isn't great. Luckily the README for the data tells us 
+>   A full single run of a block design visual localizer experiment with
+  six images categories, where each category appeared in two blocks.
+  156 volumes.
+
+
+
+```{python}
+len(bold_series) / 156
+```
+
+```{python}
+data = bold_series.data
+```
+
+```{python}
+data.shape = (80, 80, 35, 156)
+```
+
+So what we probably have is the following order of dimensions
+
+```
+data.shape = (80, 80, 35, 156)
+            #( x,  y,  z, time)
+```
+
+### Axial plane
+Let's visually verify that if we select the middle `z` value ($ \lfloor \frac{35}{2} \rfloor = 17 $), and average over all timepoints, what we end up is an average axial plane image. The code in the next cell is the following:
+
+```
+    data[:, :, 17, :].mean(axis=-1)
+```
+
+We take our 4D volume of data where we fix `z=17`, leaving us with, in order,  `x, y, time` varying 3D data, and collapse across the last dimension, giving us the time average `x,y` varying 2D data that we plot as image.
+
+* If you want to skip ahead, compare this calculation with how we can compute the same [average axial plane using `xarray`](#Axial-plane,-revisited) in a later section of this document (or use [this same link](#Axial-plane,-revisited) to go back if you've returned from that section).
+
+```{python}
+plt.imshow(
+    data[:, :, 17, :].mean(axis=-1),
+    cmap="gray"
+)
+```
+
+```{python}
+from ipywidgets import interact
+
+@interact(time=(0,data.shape[-1]-1), z=(0,data.shape[-2]-1))
+def show_slice(time, z):
+    # note how we transpose data to ax
+    return plt.imshow(data[:, :, z, time], cmap="gray")
+```
+
+# Incrementally better with `xarray`
+
+Let's work our way up to a more analysis-friendly container. The [`xarray` overview section](https://docs.xarray.dev/en/stable/getting-started-guide/why-xarray.html) starts with the following:
+
+> Xarray introduces labels in the form of dimensions, coordinates and attributes on top of raw NumPy-like multidimensional arrays, which allows for a more intuitive, more concise, and less error-prone developer experience.
+
+Let's start by giving our BOLD data array some appropriate dimensions labels.
+
+```{python}
+import xarray as xr
+da = xr.DataArray(data, dims=["x", "y", "z", "time"])
+da
+```
+
+You'll note that the top of the previous cell includes not only the dimensions, but also the number of steps in that dimension. Here it is again: 
+
+> `xarray.DataArray`  (x: 80, y: 80, z: 35, time: 156)
+
+```{python}
+da.data.shape
+```
+
+```{python}
+da.dims
+```
+
+### Axial plane, revisited
+
+Just with this small change, we can now express what previous required keeping track of the order of dimensions for this particular dataset, to something we can express without keeping that in our heads.
+
+Recall that in the [original average axial plane](#Axial-plane) we figured out that the middle value of `z` is 17. Our new code for the same calculation is the following:
+
+```
+    da[dict(z=17)].sum(dim='time')
+```
+
+For dimensions with integer values, `xarray`'s `DataArray` can be indexed with a dictionary, so once we have labeled the dimensions, we can say that we want to select the 3D volume where `z=17` and take the average over time.
+
+There's also another way, the `.isel` method allows us to select along a named dimension by index:
+
+```
+    da.isel(z=17).sum(dim='time')
+```
+
+```{python}
+plt.imshow(
+    da[dict(z=17)].mean(dim='time'),
+    # da.isel(z=17).mean(dim='time'), ## same as line above
+    cmap='gray'
+)
+```
+
+And if we had to calculate the middle point along the `z` dimension, we could have done like this:
+
+
+```{python}
+len(da.z) // 2
+```
+
+### Coordinates for time
+
+```{python}
+TR = bold_series[0].header.get("RepetitionTime")
+TR
+```
+
+Here, we've got `2000` milliseconds betweeen each slice, let's have our data reflect this
+
+```{python}
+import numpy as np
+da2 = xr.DataArray(data,
+    dims=["x", "y", "z", "time"], 
+    coords={"time": xr.DataArray(np.arange(0, (data.shape[-1]) * TR, TR), dims=["time"], attrs={"units":"ms"})})
+da2
+```
+
+Ok, so now that we have `time` coordinates in our data, we can actually have a time-aware slider.
+
+```{python}
+da3.time[-1]
+```
+
+```{python}
+from ipywidgets import interact
+
+@interact(time=(0, da2.time.data[-1]/1000, da2.time.data[1]/1000), z=(0, da2.z.data[-1]))
+def show_slice(time, z):
+    plt.imshow(
+        da2.sel(time=xr.DataArray([time*1000], dims=['time']), method="nearest").isel(z=z).data,
+        cmap='gray'
+)
+```
+
+```{python}
+da3 = xr.DataArray(data,
+    dims=["x", "y", "z", "time"], 
+    coords={
+        "x": range(0, data.shape[0]),
+        "y": range(0, data.shape[1]),
+        "z": range(0, data.shape[2]),
+        "time": xr.DataArray(np.arange(0, (data.shape[-1]) * TR, TR), dims=["time"])})
+da3
+```
+
+We don't have to specify `coords` as a dictionary, so long as we preserve the same order that the dimensions were specified in.
+
+```{python}
+da4 = xr.DataArray(data, dims=["x", "y", "z", "time"], 
+             coords=[range(0, data.shape[0]),
+                     range(0, data.shape[1]),
+                     range(0, data.shape[2]),
+                     xr.DataArray(np.arange(0, (data.shape[-1]) * TR, TR), dims=["time"])
+])
+da3.equals(da4)
+```
+
+### Storing header information in attrs
+
+```{python}
+da3.attrs
+```
+
+TODO:  I'm just copying all headers here, assuming they're the same, but there are probably some that are different across slices.
+
+```{python}
+for k in bold_series[0].header.keys:
+    da3.attrs[k] = bold_series[0].header.get(k)
+```
+
+```{python}
+da3.attrs
+```
+
+```{python}
+### Reading and writing zarr
+```
+
+```{python}
+# !rm -fr our_zarr*
+```
+
+```{python}
+orig = xr.DataArray(data, dims=["x", "y", "z", "time"], 
+             coords=[range(0, data.shape[0]),
+                     range(0, data.shape[1]),
+                     range(0, data.shape[2]),
+                    xr.DataArray(np.arange(0, (data.shape[-1]) * 3.3, 3.3))
+])
+```
+
+```{python}
+z = orig.to_zarr("./our_zarr_test")
+```
+
+```{python}
+# !ls our_zarr_test/
+```
+
+```{python}
+orig.name = "yo"
+```
+
+```{python}
+z = orig.to_zarr("./our_zarr_test_2")
+```
+
+```{python}
+# ls our_zarr_test_2/
+```
+
+```{python}
+# ls our_zarr_test_2/yo
+```
+
+```{python}
+## restart kernel after uninstalling dask
+```
+
+```{python}
+# %pip -q uninstall -y dask
+```
+
+```{python}
+import xarray as xr
+```
+
+```{python}
+xr.open_zarr("./our_zarr_test_2")
+```
+
+```{python}
+## restart kernel after installing dask
+```
+
+```{python}
+# %pip -q install dask
+```
+
+```{python}
+import xarray as xr
+xr.open_zarr("./our_zarr_test_2")
+```
+
+Note: if `dask` is installed,  data gets read in as a `dask.array`
+
+```{python}
+
+```
