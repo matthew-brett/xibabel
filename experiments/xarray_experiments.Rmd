@@ -34,6 +34,11 @@ git submodule update --init
 
 To get the data files below.
 
+```{python}
+import os
+os.environ['ZARR_V3_EXPERIMENTAL_API'] = "1"
+```
+
 # Anatomical scan
 
 ```{python}
@@ -336,6 +341,14 @@ orig = xr.DataArray(data, dims=["x", "y", "z", "time"],
 
 ```{python}
 z = orig.to_zarr("./our_zarr_test")
+```
+
+```{python}
+os.environ['ZARR_V3_EXPERIMENTAL_API'] = "1"
+```
+
+```{python}
+orig.to_zarr('./our_zarr3_test', zarr_version=3)
 ```
 
 ```{python}

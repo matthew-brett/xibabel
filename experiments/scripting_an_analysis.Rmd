@@ -1,0 +1,60 @@
+---
+jupyter:
+  jupytext:
+    notebook_metadata_filter: all,-language_info
+    split_at_heading: true
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.0
+  kernelspec:
+    display_name: Python 3 (ipykernel)
+    language: python
+    name: python3
+---
+
+# Scripting an analysis
+
+```{python}
+import xibabel as xi
+```
+
+Make sure you have the data with:
+
+```bash
+datalad install ///labs/haxby/life
+```
+
+You should now have a new directory called `life`
+
+```{python}
+ds = xibabel.load_study('life')
+```
+
+As a first pass, we might like to run diagnostics on this dataset.
+
+
+
+```{python}
+# The 
+assert len(ds.studies) == 1
+study = ds.studies[list(ds.studies)[0])
+```
+
+```{python}
+for subj_label, subject in study.subjects.items():
+    # Each `func` will be an FMRI "run" (time-series of 3D volumes).
+    for func_label, func in subject.functionals.items():
+        # Create diagnostic time-series and images.  Store in
+        # their own dataset.  What is this structure though?
+        # Who / what knows about it?  How and where should it be stored?
+        diagnostics = xi.diagnostics(func)
+        # How should we override and extend the outlier detection?
+        # Say outliers is a sparse 2D array size n_volumes by n_slices, with
+        # weight 0 through 1 indicating probability of being outlier.
+        outliers = diagnostics.find_outliers()
+        cleaned_func = xi.remove_outliers(func, outliers, threshold=0.5)
+```
+
+
