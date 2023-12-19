@@ -1,0 +1,3 @@
+# Requirements for testing
+-r requirements.txt
+pytest-doctestplus

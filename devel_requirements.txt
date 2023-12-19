@@ -1,0 +1,8 @@
+# Requirements for full development process
+-r test_requirements.txt
+nbclassic
+jupytext
+dicom_parser
+matplotlib
+ipywidgets
+zarr
