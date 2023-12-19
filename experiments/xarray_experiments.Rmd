@@ -7,7 +7,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.15.2
+      jupytext_version: 1.16.0
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -18,10 +18,21 @@ jupyter:
 
 Optionally execute the next cell to ensure you have the packages necessary to run this notebook, and also to run `git submodule update --init` to get the data we'll refer to, in case you have not already done that.
 
-```{python}
-# %pip -q install dicom_parser matplotlib ipywidgets xarray zarr
-# !git submodule update --init
+
+Don't forget to run:
+
 ```
+pip install -r devel_requirements.txt
+```
+
+
+You will also need:
+
+```
+git submodule update --init
+```
+
+To get the data files below.
 
 # Anatomical scan
 
@@ -81,7 +92,7 @@ Looking at the slices, let's call these dimensions
 
 `(y, z, x)`
 
-Which means that if we take the middle `x` value, $ \lfloor \frac{384}{2} \rfloor = 192$, we should see a sagittal plane image.
+Which means that if we take the middle `x` value, $\lfloor \frac{384}{2} \rfloor = 192$, we should see a sagittal plane image.
 
 ```{python}
 plt.imshow(anat_series[192].data, cmap="gray")
@@ -96,6 +107,7 @@ Let's now open some BOLD scans.
 `dicom_parser` demands reading only `.dcm` or `.img` files and the data sample in [datalad/example-dicom-functional](https://github.com/datalad/example-dicom-functional) stores the files without an extension. There might be a better way of doing this, but it got the job done. (Equivalent of shell  `for x in *; do ln -s $x $x.dcm; done` in that directory.
 
 ```{python}
+import os
 import glob
 
 if glob.glob("../testing/example-dicom-functional/dicoms/*.dcm") == []:
@@ -143,7 +155,9 @@ data.shape = (80, 80, 35, 156)
 ```
 
 ### Axial plane
-Let's visually verify that if we select the middle `z` value ($ \lfloor \frac{35}{2} \rfloor = 17 $), and average over all timepoints, what we end up is an average axial plane image. The code in the next cell is the following:
+Let's visually verify that if we select the middle `z` value ($\lfloor
+\frac{35}{2} \rfloor = 17 $), and average over all timepoints, what we end up
+is an average axial plane image. The code in the next cell is the following:
 
 ```
     data[:, :, 17, :].mean(axis=-1)
@@ -235,12 +249,13 @@ TR = bold_series[0].header.get("RepetitionTime")
 TR
 ```
 
-Here, we've got `2000` milliseconds betweeen each slice, let's have our data reflect this
+Here, we've got `2000` milliseconds between each slice, let's have our data
+reflect this
 
 ```{python}
 import numpy as np
 da2 = xr.DataArray(data,
-    dims=["x", "y", "z", "time"], 
+    dims=["x", "y", "z", "time"],
     coords={"time": xr.DataArray(np.arange(0, (data.shape[-1]) * TR, TR), dims=["time"], attrs={"units":"ms"})})
 da2
 ```
@@ -248,7 +263,7 @@ da2
 Ok, so now that we have `time` coordinates in our data, we can actually have a time-aware slider.
 
 ```{python}
-da3.time[-1]
+da2.time[-1]
 ```
 
 ```{python}
@@ -373,7 +388,3 @@ xr.open_zarr("./our_zarr_test_2")
 ```
 
 Note: if `dask` is installed,  data gets read in as a `dask.array`
-
-```{python}
-
-```
