@@ -80,5 +80,18 @@ for subj_label, subject in study.subjects.items():
         cleaned_func = xi.remove_outliers(func, outliers, threshold=0.5)
         # store in derivatives/xibabel/?
 ```
+```{python}
+import matplotlib.pyplot as plt
+for (n,d) in outliers.items():
+    if d.ndim == 1:
+        plt.plot(d, label=n)
+plt.legend()
+```
 
+```{python}
+outliers.keys()
+```
 
+```{python}
+
+```

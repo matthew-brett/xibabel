@@ -3,6 +3,7 @@
 import pathlib
 
 import nibabel as nib
+from nipy.algorithms.diagnostics.timediff import time_slice_diffs
 
 __version__ = "0.0.1a0"
 
@@ -34,7 +35,7 @@ class Diagnostics:
         self.run = run
 
     def find_outliers(self):
-        return
+        return time_slice_diffs(self.run.dataobj)
 
 def load_study(dir_path, exclude_subjects_without_data_files=True):
     # Not sold if we want such a long parameter name.
@@ -60,8 +61,6 @@ def load_runs(data_path):
     return dict((r.name, nib.load(r)) for r in runs_paths if r.exists())
 
 def diagnostics(run):
-    # nipy.algorithms.diagnostics.timediff.
-    # return time_slice_diffs(run)
     return Diagnostics(run)
 
 def remove_outliers(run, outliers, threshold):
