@@ -119,8 +119,9 @@ def load(file_path, format="BIDS"):
                         coords={ "time": xr.DataArray(time_coords, dims=["time"],
                                                       attrs={"units": "s"})
                                 },
-                        attrs={"sidecar": sidecar, "header": dict(img.header),
-                               "affine": img.affine.tolist()})
+                        # zarr can't serialize numpy arrays as attrs
+                        attrs={"sidecar": sidecar, })#"header": dict(img.header),
+                               #"affine": img.affine.tolist()})
 
 
 def diagnostics(run):
