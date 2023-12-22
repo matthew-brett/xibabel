@@ -282,6 +282,9 @@ def show_slice(time, z):
 )
 ```
 
+Note the clear clockwise head rotation as you scrub the time from 0-310 and back in the widget above.
+
+
 ```{python}
 da3 = xr.DataArray(data,
     dims=["x", "y", "z", "time"], 

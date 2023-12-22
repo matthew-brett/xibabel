@@ -23,13 +23,36 @@ import xibabel as xi
 Make sure you have the data with:
 
 ```bash
-datalad install ///labs/haxby/life
+cd ../testing
+datalad install datalad install https://datasets.datalad.org/openneuro/ds003466
+datalad get ds003466/sub-007
+
 ```
 
 You should now have a new directory called `life`
 
+```{bash}
+cd ../testing
+datalad install https://datasets.datalad.org/openneuro/ds003466
+datalad get ds003466/sub-007
+echo "Done"
+```
+
 ```{python}
-ds = xibabel.load_study('life')
+from importlib import reload
+reload(xi)
+
+d = xi.load('../testing/ds003466/sub-007/ses-01/func/sub-007_ses-01_task-motor_run-01_bold.nii.gz', format="bard")
+d
+```
+
+```{python}
+study = xi.load_study('../testing/life')
+study
+```
+
+```{python}
+study.subjects
 ```
 
 As a first pass, we might like to run diagnostics on this dataset.
@@ -37,9 +60,9 @@ As a first pass, we might like to run diagnostics on this dataset.
 
 
 ```{python}
-# The 
-assert len(ds.studies) == 1
-study = ds.studies[list(ds.studies)[0])
+# Took this out for now -pi
+#assert len(ds.studies) == 1
+#study = ds.studies[list(ds.studies)[0])
 ```
 
 ```{python}
@@ -55,6 +78,17 @@ for subj_label, subject in study.subjects.items():
         # weight 0 through 1 indicating probability of being outlier.
         outliers = diagnostics.find_outliers()
         cleaned_func = xi.remove_outliers(func, outliers, threshold=0.5)
+        # store in derivatives/xibabel/?
+```
+```{python}
+import matplotlib.pyplot as plt
+for (n,d) in outliers.items():
+    if d.ndim == 1:
+        plt.plot(d, label=n)
+plt.legend()
 ```
 
+```{python}
+outliers.keys()
+```
 
