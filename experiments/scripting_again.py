@@ -19,27 +19,44 @@ import xarray as xr
 import nibabel as nib
 import xibabel as xib
 
+# For constructing the design.
+from nipy.modalities.fmri.design import block_design, natural_spline
+
 img_path_root = (Path(__file__).parent.parent / 'testing' /
             'ds000105' /
             'sub-1' /
             'func' /
             'sub-1_task-objectviewing_run-01_')
 
-
 bold_path = img_path_root.with_name(img_path_root.name + 'bold.nii.gz')
-tsv_path = img_path_root.with_name(img_path_root.name + '_events.tsv')
+tsv_path = img_path_root.with_name(img_path_root.name + 'events.tsv')
+
+# Load the events ready to make a design.
+event_df = pd.read_csv(tsv_path, sep='\t')
+df = event_df.rename(columns={'onset': 'start', 'duration': 'end'})
+df['end'] = df['start'] + df['end']
+block_spec = df.to_records(index=None)
 
 nib_img = nib.load(bold_path)
 vol_shape = nib_img.shape[:-1]
 n_vols = nib_img.shape[-1]
+TR = nib_img.header.get_zooms()[-1]
+# Of course this array comes naturally from xirr['time'] below.
+t = np.arange(n_vols) * TR
+regressors, contrasts = block_design(block_spec, t)
+con_tt0 = contrasts['trial_type_0']
+n_contrasts = con_tt0.shape[0]
+# Add drift regressors.
+drift = natural_spline(t)
+n_drift = drift.shape[1]
+design_matrix = np.hstack([regressors, drift])
+# Contrasts for the eight event types.
+con_mat = np.hstack([con_tt0, np.zeros((n_contrasts, n_drift))])
 
-# A fake design matrix.  I'll fix this up.
-design_matrix = np.hstack(
-    [rng.normal(size=(n_vols, 2)), np.ones((n_vols, 1))])
 # For notation!
 X = design_matrix
-# Analysis the old way.
 
+# Analysis the old way.
 # The 4D array (i, j, k, time)
 data = nib_img.get_fdata()
 
@@ -53,7 +70,7 @@ vols_by_voxels = np.reshape(data, (-1, n_vols)).T
 B = np.linalg.pinv(X) @ vols_by_voxels
 
 # Contrast applied.  Two slopes compared
-c = np.array([[-1, 1, 0]])
+c = con_mat[4, :]
 con_vec = c @ B
 
 con_arr = np.reshape(con_vec, vol_shape)
