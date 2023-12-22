@@ -24,26 +24,26 @@ Make sure you have the data with:
 
 ```bash
 cd ../testing
-datalad install ///labs/haxby/life
-for sub in  sub-rid000001  sub-rid000005 sub-rid000006
-    datalad get life/$sub
+datalad install datalad install https://datasets.datalad.org/openneuro/ds003466
+datalad get ds003466/sub-007
+
 ```
 
 You should now have a new directory called `life`
 
 ```{bash}
-cd ../testing;
-datalad install ///labs/haxby/life;
-for sub in  sub-rid000001  sub-rid000005 sub-rid000006; do
-    datalad get life/$sub;
-    echo finished $sub
-done
+cd ../testing
+datalad install https://datasets.datalad.org/openneuro/ds003466
+datalad get ds003466/sub-007
 echo "Done"
 ```
 
 ```{python}
 from importlib import reload
 reload(xi)
+
+d = xi.load('../testing/ds003466/sub-007/ses-01/func/sub-007_ses-01_task-motor_run-01_bold.nii.gz', format="bard")
+d
 ```
 
 ```{python}
