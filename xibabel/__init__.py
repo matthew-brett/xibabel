@@ -82,29 +82,37 @@ def load_runs(data_path):
     # TODO exists check necessary for subjects not yet fetched by datalad
     return dict((r.name, load(r)) for r in runs_paths if r.exists())
 
-def load(file_path, format="BIDS"):
+def load(file_path, format=None):
     if type(file_path) == str:
         file_path = pathlib.Path(file_path)
-    if format.lower() == "zarr":
+    if format and format.lower() == "zarr":
         return load_zarr(file_path)
-    if format.lower() != "bids":
+    is_bids = format and format.lower() == "bids"
+    if format and not is_bids:
         logger.warn("unknown format %r", format)
         raise ValueError(f"Unknown format '{format}': must be either 'bids' or 'zarr'")
-    img= nib.load(file_path)
+    img = nib.load(file_path)
     # cut off .nii an .nii.gz
     base = file_path.name.split('.')[0]
     sidecar_file = file_path.with_name(base+".json")
-    if not sidecar_file.exists():
-        logger.warn("Invalid BIDS image, file missing %s", sidecar_file)
-        return InvalidBIDSImage(data=img, error="sidecar file missing", )
-    with sidecar_file.open() as f:
-        sidecar = json.load(f)
-    TR = sidecar["RepetitionTime"]
+    if is_bids:
+        if not sidecar_file.exists():
+            logger.warn("Invalid BIDS image, file missing %s", sidecar_file)
+            return InvalidBIDSImage(data=img, error="sidecar file missing", )
+            TR = 1 # TODO or try to get it from img
+        with sidecar_file.open() as f:
+            sidecar = json.load(f)
+        TR = sidecar["RepetitionTime"]
+    else:
+        sidecar = {}
+        TR = 1
     if img.ndim == 4:
         time_coords = np.arange(0, (img.shape[-1]) * TR, TR)
         # leaving this as img.dataobj will error on inside numeric routine of
         # numpy during xarray.DataArray creation if not all coords are
         # specified
+        #  > numpy/core/numeric.py:330, in full(shape, fill_value, dtype, order, like)
+        # ValueError: could not broadcast input array from shape (40,64,64,121) into shape (1,1,1,121)
         data = np.array(img.dataobj)
     # Anatomical scans don't have time... is this a dumb thing to do?
     elif img.ndim == 3:
