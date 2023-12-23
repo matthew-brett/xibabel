@@ -85,20 +85,19 @@ xesign = xr.DataArray(
     np.linalg.pinv(X),
     dims=['p', 'time'])
 
-# Make the data chunky.
+# Optional: make the data chunky.
 chunked = xib_img.chunk({'k': 5})
 
 # Do the estimation
 xB = xr.dot(xesign, xib_img, dim=['time', 'time'])
 
-xC = xr.DataArray(con_arr, dims=['c', 'p'])
+xC = xr.DataArray(c, dims=['p'])
 
 x_c_arr = xr.dot(xC, xB, dim=['p', 'p'])
 
-# I'm guessing this will already be 3D...
+assert np.allclose(x_c_arr, con_arr)
 
 # Questions:
 # Does this really save memory?
 # Is there a better storage format to make this out-of-memory or some similar
 # optimization?
-
