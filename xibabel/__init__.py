@@ -7,8 +7,11 @@ from dataclasses import dataclass
 
 import numpy as np
 import xarray as xr
+import dask.array as da
 import nibabel as nib
 from nipy.algorithms.diagnostics.timediff import time_slice_diffs
+
+import psutil
 
 __version__ = "0.0.1a0"
 
@@ -82,6 +85,41 @@ def load_runs(data_path):
     # TODO exists check necessary for subjects not yet fetched by datalad
     return dict((r.name, load(r)) for r in runs_paths if r.exists())
 
+
+class FDataObj:
+    """ Wrapper for dataobj that returns floating point values from indexing.
+    """
+
+    def __init__(self, dataobj, dtype=np.float64):
+        dtype = np.dtype(dtype)
+        if not issubclass(dtype.type, np.inexact):
+            raise ValueError(f'{dtype} should be floating point type')
+        self._dataobj = dataobj
+        self.dtype = dtype
+        self.shape = dataobj.shape
+        self.ndim = dataobj.ndim
+
+    def __getitem__(self, slicer):
+        return np.asanyarray(self._dataobj[slicer], dtype=self.dtype)
+
+    def chunk_sizes(self, maxchunk=None):
+        sizes = [None] * self.ndim
+        if maxchunk is None:
+            maxchunk = psutil.virtual_memory().available / 10
+        # Assume memory fastest changing in first dimension (F order).
+        item_size = self.dtype.itemsize
+        for axis_no in range(self.ndim, -1, -1):
+            data_size = np.prod(self.shape[:axis_no + 1]) * item_size
+            if data_size < maxchunk:
+                return sizes
+            n_chunks = data_size // maxchunk
+            if n_chunks:
+                sizes[axis_no] = maxchunk // item_size
+                return sizes
+            sizes[axis_no] = 1
+        return sizes
+
+
 def load(file_path, format=None):
     if type(file_path) == str:
         file_path = pathlib.Path(file_path)
@@ -113,16 +151,16 @@ def load(file_path, format=None):
         # specified
         #  > numpy/core/numeric.py:330, in full(shape, fill_value, dtype, order, like)
         # ValueError: could not broadcast input array from shape (40,64,64,121) into shape (1,1,1,121)
-        data = np.array(img.dataobj)
     # Anatomical scans don't have time... is this a dumb thing to do?
     elif img.ndim == 3:
         time_coords = np.array([0])
-        data = img.dataobj[..., np.newaxis]
+        img.dataobj = img.dataobj[..., np.newaxis]
     else:
         return InvalidBIDSImage(data=img, error="data not 3- or 4-dimensional")
     #return data, sidecar
     # TODO get affine, too
-    return xr.DataArray(data,
+    dataobj = FDataObj(img.dataobj)
+    return xr.DataArray(da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
                         dims=["i", "j", "k", "time"],
                         coords={ "time": xr.DataArray(time_coords, dims=["time"],
                                                       attrs={"units": "s"})
