@@ -67,7 +67,8 @@ vols_by_voxels = np.reshape(data, (-1, n_vols)).T
 # To get B such that errors (E = Y - X @ B) are minimized in the sense
 # of having the smallest np.sum(E ** 2, axis=0) for each column.
 # Betas for each voxel (n_cols_in_X by n_voxels).
-B = np.linalg.pinv(X) @ vols_by_voxels
+pX = np.linalg.pinv(X)
+B = pX @ vols_by_voxels
 
 # Contrast applied.  Two slopes compared
 c = con_mat[4, :]
@@ -81,9 +82,7 @@ xib_img = xib.load(bold_path)
 # assert isinstance(xib_img, xr.DataArray)
 
 # Make the design
-xesign = xr.DataArray(
-    np.linalg.pinv(X),
-    dims=['p', 'time'])
+xesign = xr.DataArray(pX, dims=['p', 'time'])
 
 # Optional: make the data chunky.
 chunked = xib_img.chunk({'k': 5})
