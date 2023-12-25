@@ -52,7 +52,7 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: |
-          pip install -r dev-requirements.txt
+          pip install -r devel_requirements.txt
           pip install .
       - name: Show environment
         run: env
