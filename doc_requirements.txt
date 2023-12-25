@@ -1,0 +1,5 @@
+# Requirements for building docs
+# Check these dependencies against doc/conf.py
+-r dev-requirements.txt
+sphinx>=7.0
+numpydoc>=1.6.0

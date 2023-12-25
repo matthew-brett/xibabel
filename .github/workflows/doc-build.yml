@@ -30,7 +30,7 @@ jobs:
           allow-prereleases: true
       - name: Install
         run: |
-          pip install -r doc-requirements.txt
+          pip install -r doc_requirements.txt
           pip install .
       - name: Show environment
         run: env
