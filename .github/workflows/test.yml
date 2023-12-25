@@ -1,0 +1,63 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        python_version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python_version }}
+          allow-prereleases: true
+      - name: Install
+        run: |
+          pip install -r devel_requirements.txt
+          pip install .
+      - name: Show environment
+        run: env
+      - name: Library tests
+        run: |
+          mkdir tmp
+          cd tmp
+          pytest --doctest-plus --pyargs xibabel
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install -r dev-requirements.txt
+          pip install .
+      - name: Show environment
+        run: env
+      - name: Library tests
+        run: |
+          mkdir tmp
+          cd tmp
+          pytest -s -c ../bench.ini --pyargs xibabel

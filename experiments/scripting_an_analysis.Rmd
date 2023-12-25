@@ -91,4 +91,3 @@ plt.legend()
 ```{python}
 outliers.keys()
 ```
-

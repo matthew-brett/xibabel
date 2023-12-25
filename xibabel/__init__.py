@@ -64,7 +64,7 @@ def load_study(dir_path, exclude_subjects_without_data_files=True):
 
 
 def load_subject(sub_path):
-    if type(sub_path) == str:
+    if isinstance(sub_path, str):
         sub_path = pathlib.Path(sub_path)
     subject_id = sub_path.name
     # Being a bit cheeky here, either we'll load data from a single session at
@@ -120,8 +120,12 @@ class FDataObj:
         return sizes
 
 
+def load_zarr(file_path):
+    raise NotImplementedError
+
+
 def load(file_path, format=None):
-    if type(file_path) == str:
+    if isinstance(file_path, str):
         file_path = pathlib.Path(file_path)
     if format and format.lower() == "zarr":
         return load_zarr(file_path)
@@ -150,7 +154,8 @@ def load(file_path, format=None):
         # numpy during xarray.DataArray creation if not all coords are
         # specified
         #  > numpy/core/numeric.py:330, in full(shape, fill_value, dtype, order, like)
-        # ValueError: could not broadcast input array from shape (40,64,64,121) into shape (1,1,1,121)
+        # ValueError: could not broadcast input array from shape (40,64,64,121)
+        # into shape (1,1,1,121)
     # Anatomical scans don't have time... is this a dumb thing to do?
     elif img.ndim == 3:
         time_coords = np.array([0])

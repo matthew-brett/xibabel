@@ -8,11 +8,8 @@ datalad get ds000105/sub-1
 from pathlib import Path
 
 import numpy as np
-rng = np.random.default_rng()
 
 import pandas as pd
-
-import matplotlib.pyplot as plt
 
 import xarray as xr
 
@@ -21,6 +18,8 @@ import xibabel as xib
 
 # For constructing the design.
 from nipy.modalities.fmri.design import block_design, natural_spline
+
+rng = np.random.default_rng()
 
 img_path_root = (Path(__file__).parent.parent / 'testing' /
             'ds000105' /
