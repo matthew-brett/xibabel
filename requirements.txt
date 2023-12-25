@@ -1,3 +1,4 @@
 xarray
 dask
 nibabel
+nipy
