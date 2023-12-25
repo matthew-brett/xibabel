@@ -26,6 +26,7 @@ jobs:
       - name: Install
         run: |
           pip install -r devel_requirements.txt
+          pip install pytest-cov
           pip install .
       - name: Show environment
         run: env
