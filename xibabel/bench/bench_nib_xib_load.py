@@ -1,6 +1,10 @@
 import sys
 
+import numpy as np  # noqa:F401
 import numpy.testing as npt
+
+import nibabel as nib  # noqa:F401
+import xibabel as xib  # noqa:F401
 
 from nibabel.testing import data_path
 
