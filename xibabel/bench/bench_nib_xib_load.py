@@ -1,10 +1,7 @@
 import sys
 
-import numpy as np
 import numpy.testing as npt
 
-import nibabel as nib
-import xibabel as xib
 
 
 from nibabel.testing import data_path
