@@ -2,8 +2,6 @@ import sys
 
 import numpy.testing as npt
 
-
-
 from nibabel.testing import data_path
 
 
