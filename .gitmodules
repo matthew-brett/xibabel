@@ -1,6 +1,9 @@
-[submodule "testing/insular-dicoms"]
-	path = testing/insular-dicoms
+[submodule "xibabel/testing/insular-dicoms"]
+	path = xibabel/testing/insular-dicoms
 	url = https://github.com/matthew-brett/insular-dicoms
-[submodule "testing/example-dicom-functional"]
-	path = testing/example-dicom-functional
+[submodule "xibabel/testing/example-dicom-functional"]
+	path = xibabel/testing/example-dicom-functional
 	url = https://github.com/datalad/example-dicom-functional
+[submodule "xibabel/testing/ds000105"]
+	path = xibabel/testing/ds000105
+	url = https://datasets.datalad.org/openneuro/ds000105

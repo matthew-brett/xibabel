@@ -1,3 +1,4 @@
 # Requirements for testing
 -r requirements.txt
+pyyaml
 pytest-doctestplus

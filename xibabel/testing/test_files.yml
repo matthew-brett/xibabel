@@ -1,0 +1,4 @@
+# Test file locations
+datalad:
+  - ds000105/sub-1/func/sub-1_task-objectviewing_run-01_bold.nii.gz
+  - ds000105/sub-1/func/sub-1_task-objectviewing_run-01_events.tsv
