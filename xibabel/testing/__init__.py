@@ -1,4 +1,15 @@
 """ Testing utilties and data
+
+We currently only have one data source — `https://www.datalad.org`_.
+
+The datasets we are using come from the `OpenNeuro collection
+<https://docs.openneuro.org/git>`_.
+
+To add a file to the data collection:
+
+* ``git submodule add`` the relevant Datalad repository.
+* Add the test files to `test_files.yml`, and maybe `test_sets.yml`, if you
+  want to include them in a testing set.
 """
 
 from pathlib import Path
