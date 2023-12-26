@@ -10,8 +10,11 @@ import numpy as np
 import psutil
 
 import nibabel as nib
+from nibabel.spatialimages import HeaderDataError
 import xarray as xr
 import dask.array as da
+
+from .xutils import merge
 
 
 logger = logging.getLogger(__name__)
@@ -88,6 +91,74 @@ class InvalidBIDSImage:
     error: str
 
 
+dim_recoder = {
+    None: None,
+    0: 'i',
+    1: 'j',
+    2: 'k'}
+
+
+time_unit_scaler = {
+    'sec': 1,
+    'msec': 1000,
+    'usec': 1_000_000}
+
+
+class NiftiWrapper:
+
+    def __init__(self, header):
+        self.header = nib.Nifti1Header.from_header(header)
+
+    def get_dim_labels(self):
+        freq_dim, phase_dim, slice_dim = self.header.get_dim_info()
+        return {'FrequencyEncodingDirection': dim_recoder[freq_dim],
+                'PhaseEncodingDirection': dim_recoder[phase_dim],
+                'SliceEncodingDirection': dim_recoder[slice_dim]}
+
+    def get_slice_timing(self):
+        hdr = self.header
+        freq_dim, phase_dim, slice_dim = hdr.get_dim_info()
+        if not slice_dim:
+            return None
+        duration = hdr.get_slice_duration()
+        if duration == 0:
+            return None
+        slice_start, slice_end = hdr['slice_start'], hdr['slice_end']
+        n_slices = hdr.get_n_slices()
+        if slice_start != 0 or slice_end != n_slices - 1:
+            return None
+        try:
+            return list(hdr.get_slice_times())
+        except HeaderDataError:
+            return None
+
+    def get_repetition_time(self):
+        hdr = self.header
+        zooms = hdr.get_zooms()
+        if len(zooms) < 4:
+            return None
+        time_zoom = zooms[3]
+        space_units, time_units = hdr.get_xyzt_units()
+        if time_units == 'unknown':
+            return None
+        return time_unit_scaler[time_units] * time_zoom
+
+    def to_meta(self):
+        meta = self.get_dim_labels()
+        meta['SliceTiming'] = self.get_slice_timing()
+        meta['RepetitionTime'] = self.get_repetition_time()
+        return {k: v for k, v in meta.items() if v is not None}
+
+
+def wrap_header(header):
+    # We could try extracting more information from other file types, but
+    return NiftiWrapper(header)
+
+
+def load_nibabel(file_path):
+    img = nib.load(file_path)
+    return img, wrap_header(img.header).to_meta()
+
 
 def load(file_path, format=None):
     if isinstance(file_path, str):
@@ -97,7 +168,7 @@ def load(file_path, format=None):
     is_bids = format and format.lower() == "bids"
     if format and not is_bids:
         raise ValueError(f"Unknown format '{format}': must be either 'bids' or 'zarr'")
-    img = nib.load(file_path)
+    img, meta = load_nibabel(file_path)
     # cut off .nii an .nii.gz
     base = file_path.name.split('.')[0]
     sidecar_file = file_path.with_name(base+".json")
@@ -108,6 +179,7 @@ def load(file_path, format=None):
             TR = 1 # TODO or try to get it from img
         with sidecar_file.open() as f:
             sidecar = json.load(f)
+        sidecar = merge(meta, sidecar)
         TR = sidecar["RepetitionTime"]
     else:
         sidecar = {}

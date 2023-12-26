@@ -1,10 +1,14 @@
 """ Test loaders
 """
 
+import os
+
 import numpy as np
 
+import nibabel as nib
+
 from xibabel import loaders
-from xibabel.loaders import FDataObj
+from xibabel.loaders import FDataObj, load_nibabel
 
 rng = np.random.default_rng()
 
@@ -22,7 +26,6 @@ class FakeProxy:
 
     def __array__(self):
         return self[:]
-
 
 
 def test_fdataobj_basic():
@@ -67,3 +70,64 @@ def test_chunking(monkeypatch):
     assert fproxy.chunk_sizes() == [1, 6, None]
     assert c_fproxy.chunk_sizes() == [1, 6, None]
     assert f_fproxy.chunk_sizes() == [None, 19, 1]
+
+
+def out_back(img, out_path):
+    if out_path.is_file():
+        os.unlink(out_path)
+    nib.save(img, out_path)
+    return load_nibabel(out_path)
+
+
+def test_nibabel_tr(tmp_path):
+    # Default image.
+    arr = np.zeros((2, 3, 4))
+    img = nib.Nifti1Image(arr, np.eye(4), None)
+    out_path = tmp_path / 'test.nii'
+    back_img, meta = out_back(img, out_path)
+    assert meta == {}
+    arr = np.zeros((2, 3, 4, 6))
+    img = nib.Nifti1Image(arr, np.eye(4), None)
+    back_img, meta = out_back(img, out_path)
+    assert meta == {}
+    img.header.set_xyzt_units('mm', 'sec')
+    back_img, meta = out_back(img, out_path)
+    assert meta == {'RepetitionTime': 1.0}
+    img.header.set_xyzt_units('mm', 'msec')
+    back_img, meta = out_back(img, out_path)
+    assert meta == {'RepetitionTime': 1000.0}
+    img.header.set_xyzt_units('mm', 'usec')
+    back_img, meta = out_back(img, out_path)
+    assert meta == {'RepetitionTime': 1_000_000}
+
+
+def test_nibabel_slice_timing(tmp_path):
+    # Default image.
+    arr = np.zeros((2, 3, 4, 5))
+    img = nib.Nifti1Image(arr, np.eye(4), None)
+    out_path = tmp_path / 'test.nii'
+    back_img, meta = out_back(img, out_path)
+    assert meta == {}
+    img.header.set_dim_info(None, None, 1)
+    back_img, meta = out_back(img, out_path)
+    assert meta == {'SliceEncodingDirection': 'j'}
+    img.header.set_dim_info(1, 0, 2)
+    back_img, meta = out_back(img, out_path)
+    exp_dim = {'PhaseEncodingDirection': 'i',
+               'FrequencyEncodingDirection': 'j',
+               'SliceEncodingDirection': 'k'}
+    assert meta == exp_dim
+    img.header.set_slice_duration(1 / 4)
+    back_img, meta = out_back(img, out_path)
+    assert meta == exp_dim
+    img.header['slice_start'] = 0
+    back_img, meta = out_back(img, out_path)
+    assert meta == exp_dim
+    img.header['slice_end'] = 3
+    back_img, meta = out_back(img, out_path)
+    assert meta == exp_dim
+    img.header['slice_code'] = 4  # NIFTI_SLICE_ALT_DEC
+    back_img, meta = out_back(img, out_path)
+    exp_timed = exp_dim.copy()
+    exp_timed['SliceTiming'] = [0.75, 0.25, 0.5, 0]
+    assert meta == exp_timed

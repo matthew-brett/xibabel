@@ -7,7 +7,10 @@ The datasets we are using come from the `OpenNeuro collection
 
 To add a file to the data collection:
 
-* ``git submodule add`` the relevant Datalad repository.
+* ``git submodule add`` the relevant Datalad repository.  For example::
+
+    datalad install https://datasets.datalad.org/openneuro/ds000466
+
 * Add the test files to `test_files.yml`, and maybe `test_sets.yml`, if you
   want to include them in a testing set.
 """
