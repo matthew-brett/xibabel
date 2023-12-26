@@ -19,9 +19,6 @@ jobs:
     steps:
       - name: Apt update
         run: sudo apt update
-      - name: Install graphviz
-        run: |
-          sudo apt install -y graphviz
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
@@ -30,8 +27,8 @@ jobs:
           allow-prereleases: true
       - name: Install
         run: |
-          pip install -r doc_requirements.txt
-          pip install .
+          pip install pytest-cov
+          pip install -e '.[docs,developer]'
       - name: Show environment
         run: env
       - name: Build documentation

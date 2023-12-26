@@ -16,15 +16,16 @@ jupyter:
 
 ## Requirements
 
-Optionally execute the next cell to ensure you have the packages necessary to run this notebook, and also to run `git submodule update --init` to get the data we'll refer to, in case you have not already done that.
+Optionally execute the next cell to ensure you have the packages necessary to
+run this notebook, and also to run `git submodule update --init` to get the
+data we'll refer to, in case you have not already done that.
 
 
 Don't forget to run:
 
 ```
-pip install -r devel_requirements.txt
+pip install '.[developer]'
 ```
-
 
 You will also need:
 

@@ -47,8 +47,7 @@ jobs:
         if: runner.os == 'Windows'
       - name: Install
         run: |
-          pip install -r devel_requirements.txt
-          pip install -e .
+          pip install -e '.[test,developer]'
       - name: Get data
         run: python -m xibabel.testing minimal
       - name: Cache Dataset
@@ -60,9 +59,7 @@ jobs:
         run: env
       - name: Tests
         run: |
-          mkdir tmp
-          cd tmp
-          pytest -v -v --doctest-plus --pyargs xibabel
+          pytest -v -v --doctest-plus src/xibabel
   bench:
     runs-on: ubuntu-latest
     steps:
@@ -72,8 +69,7 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: |
-          pip install -r devel_requirements.txt
-          pip install .
+          pip install -e '.[test,developer]'
       - name: Show environment
         run: env
       - name: Library tests

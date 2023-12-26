@@ -23,25 +23,27 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+      - name: Install Datalad on Unices
+        uses: datalad/datalad-action/install@main
       - name: Install
         run: |
-          pip install -r devel_requirements.txt
           pip install pytest-cov
-          pip install .
+          pip install -e '.[test,developer]'
+      - name: Get data
+        run: python -m xibabel.testing minimal
+      - name: Cache Dataset
+        uses: actions/cache@v3
+        with:
+          path: xibabel/testing/ds000105
+          key: ${{ runner.os }}-ds105
       - name: Show environment
         run: env
       - name: Library tests
         run: |
-          mkdir tmp
-          cd tmp
           pytest --doctest-plus \
-            --cov=xibabel  --cov-report xml  --cov-config=../.coveragerc \
-            --pyargs xibabel
-      - name: See what's where
-        run: |
-          pwd
-          ls -lR ..
+            --cov=xibabel  --cov-report xml  --cov-config=.coveragerc \
+            src/xibabel
       - name: Upload to codecov
         uses: codecov/codecov-action@v3
         with:
-          files: tmp/coverage.xml
+          files: coverage.xml
