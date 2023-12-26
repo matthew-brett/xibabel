@@ -41,6 +41,8 @@ jobs:
           python -m pip install datalad-installer
           datalad-installer git-annex -m datalad/git-annex:release
           git config --global filter.annex.process "git-annex filter-process"
+          git config --global user.email "xibabel-developers@nipy.org"
+          git config --global user.name "Xibabel developers"
           python -m pip install datalad
         if: runner.os == 'Windows'
       - name: Install
