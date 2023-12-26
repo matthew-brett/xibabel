@@ -32,10 +32,28 @@ jobs:
         with:
           python-version: ${{ matrix.python_version }}
           allow-prereleases: true
+      - name: Install Datalad on Unices
+        uses: datalad/datalad-action/install@main
+        if: runner.os == 'Linux' || runner.os == 'macOS'
+      - name: Install Datalad on Windows
+        run: |
+          # https://handbook.datalad.org/en/latest/intro/installation.html
+          python -m pip install datalad-installer
+          datalad-installer git-annex -m datalad/git-annex:release
+          git config --global filter.annex.process "git-annex filter-process"
+          python -m pip install datalad
+        if: runner.os == 'Windows'
       - name: Install
         run: |
           pip install -r devel_requirements.txt
           pip install .
+      - name: Get data
+        run: python -m xibabel.testing minimal
+      - name: Cache Dataset
+        uses: actions/cache@v3
+        with:
+          path: xibabel/testing/ds000105
+          key: ${{ runner.os }}-ds105
       - name: Show environment
         run: env
       - name: Library tests
