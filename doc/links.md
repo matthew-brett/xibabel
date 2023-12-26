@@ -154,4 +154,4 @@ Links mainly from OME-Zarr paper:
 
 - [AGAVE viewer](https://www.allencell.org/pathtrace-rendering.html) - C++ / QT
   desktop viewer.
-- [ITKwidgets](
+- [ITKwidgets](https://itkwidgets.readthedocs.io/en/latest/) - Python
