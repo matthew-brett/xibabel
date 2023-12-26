@@ -2,3 +2,4 @@ xarray
 dask
 nibabel
 nipy
+psutil
