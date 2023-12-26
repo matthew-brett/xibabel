@@ -47,9 +47,9 @@ class TestFileError(Exception):
 def _source2path_str(path_or_str):
     if isinstance(path_or_str, str):
         path_or_str = Path(path_or_str)
-    if not path_or_str.is_absolute():
-        return str(path_or_str)
-    return str(path_or_str.relative_to(DATA_PATH))
+    if path_or_str.is_absolute():
+        path_or_str = path_or_str.relative_to(DATA_PATH)
+    return '/'.join(path_or_str.parts)
 
 
 def get_file(path_str):
