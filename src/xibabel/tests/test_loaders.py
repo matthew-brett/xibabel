@@ -9,6 +9,9 @@ import nibabel as nib
 
 from xibabel import loaders
 from xibabel.loaders import FDataObj, load_nibabel
+from xibabel.testing import DATA_PATH
+
+import pytest
 
 rng = np.random.default_rng()
 
@@ -131,3 +134,26 @@ def test_nibabel_slice_timing(tmp_path):
     exp_timed = exp_dim.copy()
     exp_timed['SliceTiming'] = [0.75, 0.25, 0.5, 0]
     assert meta == exp_timed
+
+
+JC_EG = (DATA_PATH / 'ds000009' / 'sub-07' / 'func' /
+         'sub-07_task-balloonanalogrisktask_bold.nii.gz')
+
+
+@pytest.mark.skipif(not JC_EG.is_file(), reason=f'Missing "{JC_EG}"')
+def test_nib_loader_jc():
+    img, meta = load_nibabel(JC_EG)
+    assert meta == {'FrequencyEncodingDirection': 'i',
+                    'PhaseEncodingDirection': 'j',
+                    'SliceEncodingDirection': 'k',
+                    'RepetitionTime': 2.0}
+
+
+JH_EG = (DATA_PATH / 'ds000105' / 'sub-1' / 'func' /
+         'sub-1_task-objectviewing_run-01_bold.nii.gz')
+
+
+@pytest.mark.skipif(not JH_EG.is_file(), reason=f'Missing "{JH_EG}"')
+def test_nib_loader_jh():
+    img, meta = load_nibabel(JH_EG)
+    assert meta == {'RepetitionTime': 2.5}
