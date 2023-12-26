@@ -62,7 +62,7 @@ jobs:
         run: |
           mkdir tmp
           cd tmp
-          pytest --doctest-plus --pyargs xibabel
+          pytest -v --doctest-plus --pyargs xibabel
   bench:
     runs-on: ubuntu-latest
     steps:
