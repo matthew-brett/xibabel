@@ -48,7 +48,7 @@ jobs:
       - name: Install
         run: |
           pip install -r devel_requirements.txt
-          pip install .
+          pip install -e .
       - name: Get data
         run: python -m xibabel.testing minimal
       - name: Cache Dataset
@@ -58,11 +58,11 @@ jobs:
           key: ${{ runner.os }}-ds105
       - name: Show environment
         run: env
-      - name: Library tests
+      - name: Tests
         run: |
           mkdir tmp
           cd tmp
-          pytest -v --doctest-plus --pyargs xibabel
+          pytest -v -v --doctest-plus --pyargs xibabel
   bench:
     runs-on: ubuntu-latest
     steps:
