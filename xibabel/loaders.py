@@ -62,17 +62,16 @@ class FDataObj:
         sizes = [None] * self.ndim
         if maxchunk is None:
             maxchunk = MAXCHUNK_STRATEGY()
-        axis_nos = range(self.ndim)
-        item_size = self.dtype.itemsize
-        chunk_size = np.prod(self.shape) * item_size
+        chunk_size = np.prod(self.shape) * self.dtype.itemsize
         if chunk_size <= maxchunk:
             return sizes
+        axis_nos = range(self.ndim)
         if self.order == 'F':  # Assume C order by default.
             axis_nos = axis_nos[::-1]
         for axis_no in axis_nos:
             chunk_size //= self.shape[axis_no]
             n_chunks = maxchunk // chunk_size
-            if n_chunks > 1:
+            if n_chunks:
                 sizes[axis_no] = int(n_chunks)
                 return sizes
             sizes[axis_no] = 1
