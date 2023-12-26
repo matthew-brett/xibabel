@@ -38,32 +38,44 @@ class FDataObj:
         self.dtype = dtype
         self.shape = dataobj.shape
         self.ndim = dataobj.ndim
-        self._order = getattr(dataobj, 'order', None)
+        self.order = getattr(dataobj, 'order', None)
 
     def __getitem__(self, slicer):
+        """ Return image data as floating point type ``self.dtype``.
+        """
         return np.asanyarray(self._dataobj[slicer], dtype=self.dtype)
 
     def chunk_sizes(self, maxchunk=None):
+        """ Calculate chunk sizes for dataobj shape
+
+        Parameters
+        ----------
+        maxchunk : None or int, optional
+            The largest allowable chunk sizes in bytes.
+
+        Returns
+        -------
+        chunk_sizes : list
+            Chunk sizes for Dask array creation, being number of elements in
+            one chunk over all axes of array in ``self.dataobj``.
+        """
         sizes = [None] * self.ndim
         if maxchunk is None:
             maxchunk = MAXCHUNK_STRATEGY()
-        # Assume memory fastest changing in first dimension (F order).
+        axis_nos = range(self.ndim)
         item_size = self.dtype.itemsize
-        axis_nos = list(range(self.ndim))
-        remaining_shape = list(self.shape)
-        if self._order == 'F':
+        chunk_size = np.prod(self.shape) * item_size
+        if chunk_size <= maxchunk:
+            return sizes
+        if self.order == 'F':  # Assume C order by default.
             axis_nos = axis_nos[::-1]
-            remaining_shape = remaining_shape[::-1]
         for axis_no in axis_nos:
-            data_size = np.prod(remaining_shape) * item_size
-            if data_size < maxchunk:
-                return sizes
-            n_chunks = data_size // maxchunk
-            if n_chunks:
-                sizes[axis_no] = maxchunk // item_size
+            chunk_size //= self.shape[axis_no]
+            n_chunks = maxchunk // chunk_size
+            if n_chunks > 1:
+                sizes[axis_no] = int(n_chunks)
                 return sizes
             sizes[axis_no] = 1
-            remaining_shape.pop(0)
         return sizes
 
 
