@@ -65,12 +65,9 @@ class Fetcher:
         return os.environ.get('XIB_DATA_PATH', '~/.xibabel/data')
 
     def _have_local_file(self, path):
-        # On Windows, is_file is True even for not-present files.
-        if path.is_file():
-            return True
         if path.is_symlink():  # Appears to be True on Unices.
-            return False
-        # By exploration.
+            return path.is_file()
+        # By exploration on Windows
         with open(path, 'rb') as fobj:
             start = fobj.read(15)
         return start != b'/annex/objects/'
