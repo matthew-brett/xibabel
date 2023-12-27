@@ -4,7 +4,7 @@
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
-from . import get_set
+from . import fetcher
 
 
 def get_parser():
@@ -19,7 +19,7 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
     for test_set in args.test_set_name:
-        get_set(test_set)
+        fetcher.get_set(test_set)
 
 
 if __name__ == '__main__':

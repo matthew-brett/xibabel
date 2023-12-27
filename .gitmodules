@@ -4,9 +4,3 @@
 [submodule "xibabel/testing/example-dicom-functional"]
 	path = src/xibabel/testing/example-dicom-functional
 	url = https://github.com/datalad/example-dicom-functional
-[submodule "xibabel/testing/ds000105"]
-	path = src/xibabel/testing/ds000105
-	url = https://datasets.datalad.org/openneuro/ds000105/.git
-[submodule "src/xibabel/testing/ds000009"]
-	path = src/xibabel/testing/ds000009
-	url = https://datasets.datalad.org/openneuro/ds000009/.git
