@@ -9,7 +9,7 @@ import nibabel as nib
 
 from xibabel import loaders
 from xibabel.loaders import FDataObj, load_nibabel
-from xibabel.testing import DATA_PATH
+from xibabel.testing import JC_EG_FUNC, JH_EG_FUNC
 
 import pytest
 
@@ -117,7 +117,7 @@ def test_nibabel_slice_timing(tmp_path):
     img.header.set_dim_info(1, 0, 2)
     back_img, meta = out_back(img, out_path)
     exp_dim = {'PhaseEncodingDirection': 'i',
-               'FrequencyEncodingDirection': 'j',
+               'xib-FrequencyEncodingDirection': 'j',
                'SliceEncodingDirection': 'k'}
     assert meta == exp_dim
     img.header.set_slice_duration(1 / 4)
@@ -136,24 +136,16 @@ def test_nibabel_slice_timing(tmp_path):
     assert meta == exp_timed
 
 
-JC_EG = (DATA_PATH / 'ds000009' / 'sub-07' / 'func' /
-         'sub-07_task-balloonanalogrisktask_bold.nii.gz')
-
-
-@pytest.mark.skipif(not JC_EG.is_file(), reason=f'Missing "{JC_EG}"')
+@pytest.mark.skipif(not JC_EG_FUNC.is_file(), reason=f'Missing "{JC_EG_FUNC}"')
 def test_nib_loader_jc():
-    img, meta = load_nibabel(JC_EG)
-    assert meta == {'FrequencyEncodingDirection': 'i',
+    img, meta = load_nibabel(JC_EG_FUNC)
+    assert meta == {'xib-FrequencyEncodingDirection': 'i',
                     'PhaseEncodingDirection': 'j',
                     'SliceEncodingDirection': 'k',
                     'RepetitionTime': 2.0}
 
 
-JH_EG = (DATA_PATH / 'ds000105' / 'sub-1' / 'func' /
-         'sub-1_task-objectviewing_run-01_bold.nii.gz')
-
-
-@pytest.mark.skipif(not JH_EG.is_file(), reason=f'Missing "{JH_EG}"')
+@pytest.mark.skipif(not JH_EG_FUNC.is_file(), reason=f'Missing "{JH_EG_FUNC}"')
 def test_nib_loader_jh():
-    img, meta = load_nibabel(JH_EG)
+    img, meta = load_nibabel(JH_EG_FUNC)
     assert meta == {'RepetitionTime': 2.5}

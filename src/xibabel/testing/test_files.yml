@@ -8,3 +8,4 @@ datalad:
     files:
       - sub-07/func/sub-07_task-balloonanalogrisktask_bold.nii.gz
       - sub-07/func/sub-07_task-balloonanalogrisktask_events.tsv
+      - sub-07/anat/sub-07_T1w.nii.gz

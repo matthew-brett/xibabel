@@ -112,7 +112,7 @@ class NiftiWrapper:
 
     def get_dim_labels(self):
         freq_dim, phase_dim, slice_dim = self.header.get_dim_info()
-        return {'FrequencyEncodingDirection': dim_recoder[freq_dim],
+        return {'xib-FrequencyEncodingDirection': dim_recoder[freq_dim],
                 'PhaseEncodingDirection': dim_recoder[phase_dim],
                 'SliceEncodingDirection': dim_recoder[slice_dim]}
 
