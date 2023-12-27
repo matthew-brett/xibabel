@@ -51,13 +51,13 @@ jobs:
       - name: Install
         run: |
           pip install -e '.[test,developer]'
-      - name: Get data
-        run: python -m xibabel.testing minimal
       - name: Cache Dataset
         uses: actions/cache@v3
         with:
           path: ${{ env.XIB_DATA_PATH }}
           key: ${{ runner.os }}-ds105
+      - name: Get data
+        run: python -m xibabel.testing minimal
       - name: Show environment
         run: env
       - name: Tests
