@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+env:
+  XIB_DATA_PATH: ~/.xibabel/data
+
 jobs:
   report:
     runs-on: ubuntu-latest
@@ -34,7 +37,7 @@ jobs:
       - name: Cache Dataset
         uses: actions/cache@v3
         with:
-          path: xibabel/testing/ds000105
+          path: ${{ env.XIB_DATA_PATH }}
           key: ${{ runner.os }}-ds105
       - name: Show environment
         run: env

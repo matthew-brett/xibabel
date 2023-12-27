@@ -41,7 +41,8 @@ class Fetcher:
                  sets_config=None
                 ):
         data_path = data_path if data_path else self.get_data_path()
-        self.data_path = Path(data_path).resolve()
+        self.data_path = Path(data_path).expanduser().resolve()
+        self.data_path.mkdir(parents=True, exist_ok=True)
         self._files_config = files_config if files_config else _DEF_FILES_CONFIG
         self._sets_config = sets_config if sets_config else _DEF_SETS_CONFIG
         self._file_sources = self._parse_configs()
@@ -55,24 +56,24 @@ class Fetcher:
                     root = url.split('/')[-1]
                     for filename in repo['files']:
                         out[f'{root}/{filename}'] = {'type': 'datalad',
-                                                    'repo': url}
+                                                     'repo': url}
             else:
                 raise TestFileError(f'Do not recognize source "{source}"')
         return out
 
     def get_data_path(self):
-        return os.environ.get('XIB_DATA_PATH', MOD_DIR)
+        return os.environ.get('XIB_DATA_PATH', '~/.xibabel/data')
 
     def _get_datalad_file(self, path_str, repo_url):
         path_str = self._source2path_str(path_str)
         file_path = (self.data_path / path_str).resolve()
-        repo_path = self.data_path / path_str.split('/')[0]
+        repo_str, file_str = path_str.split('/', 1)
+        repo_path = self.data_path / repo_str
         if not repo_path.is_dir():
             check_call(['datalad', 'install', repo_url],
                        cwd=self.data_path)
         if not file_path.is_file():
-            check_call(['datalad', 'get', path_str],
-                       cwd=self.data_path)
+            check_call(['datalad', 'get', file_str], cwd=repo_path)
         assert file_path.is_file()
         return file_path
 

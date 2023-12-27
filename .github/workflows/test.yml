@@ -19,6 +19,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  XIB_DATA_PATH: ~/.xibabel/data
+
 jobs:
   test:
     strategy:
@@ -53,7 +56,7 @@ jobs:
       - name: Cache Dataset
         uses: actions/cache@v3
         with:
-          path: xibabel/testing/ds000105
+          path: ${{ env.XIB_DATA_PATH }}
           key: ${{ runner.os }}-ds105
       - name: Show environment
         run: env
@@ -74,6 +77,4 @@ jobs:
         run: env
       - name: Library tests
         run: |
-          mkdir tmp
-          cd tmp
-          pytest -s -c ../bench.ini --pyargs xibabel
+          pytest -v -v -c bench.ini --doctest-plus src/xibabel
