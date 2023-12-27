@@ -9,9 +9,8 @@ import nibabel as nib
 
 from xibabel import loaders
 from xibabel.loaders import FDataObj, load_nibabel
-from xibabel.testing import JC_EG_FUNC, JH_EG_FUNC
+from xibabel.testing import JC_EG_FUNC, JH_EG_FUNC, skip_without_file
 
-import pytest
 
 rng = np.random.default_rng()
 
@@ -136,7 +135,7 @@ def test_nibabel_slice_timing(tmp_path):
     assert meta == exp_timed
 
 
-@pytest.mark.skipif(not JC_EG_FUNC.is_file(), reason=f'Missing "{JC_EG_FUNC}"')
+@skip_without_file(JC_EG_FUNC)
 def test_nib_loader_jc():
     img, meta = load_nibabel(JC_EG_FUNC)
     assert meta == {'xib-FrequencyEncodingDirection': 'i',
@@ -145,7 +144,7 @@ def test_nib_loader_jc():
                     'RepetitionTime': 2.0}
 
 
-@pytest.mark.skipif(not JH_EG_FUNC.is_file(), reason=f'Missing "{JH_EG_FUNC}"')
+@skip_without_file(JH_EG_FUNC)
 def test_nib_loader_jh():
     img, meta = load_nibabel(JH_EG_FUNC)
     assert meta == {'RepetitionTime': 2.5}

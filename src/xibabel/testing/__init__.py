@@ -19,6 +19,7 @@ import os
 from pathlib import Path
 from subprocess import check_call
 
+import pytest
 import yaml
 
 MOD_DIR = Path(__file__).parent
@@ -31,6 +32,24 @@ with open(MOD_DIR / 'test_sets.yml') as fobj:
 
 class TestFileError(Exception):
     """ Error for missing or damaged test file """
+
+
+def have_file(path):
+    """ True if `path` is local file
+
+    We need this function to deal with Datalad, which used ``git annex`` to
+    store links to larger files.  This function needs to check whether the file
+    we have is the actual file, or a link (sort-of-thing) to the file, that
+    still needs a ``datalad get`` to fetch the actual contents.
+    """
+    if not path.is_file():  # Can be True for git annex links on Windows.
+        return False
+    if path.is_symlink():  # Appears to be True on Unices.
+        return True
+    # By exploration on Windows - detecting git annex placeholder for file.
+    with open(path, 'rb') as fobj:
+        start = fobj.read(15)
+    return start != b'/annex/objects/'
 
 
 class Fetcher:
@@ -64,16 +83,6 @@ class Fetcher:
     def get_data_path(self):
         return os.environ.get('XIB_DATA_PATH', '~/.xibabel/data')
 
-    def have_file(self, path):
-        if not path.is_file():  # Can be True regardless on Windows.
-            return False
-        if path.is_symlink():  # Appears to be True on Unices.
-            return True
-        # By exploration on Windows.
-        with open(path, 'rb') as fobj:
-            start = fobj.read(15)
-        return start != b'/annex/objects/'
-
     def _get_datalad_file(self, path_str, repo_url):
         path_str = self._source2path_str(path_str)
         file_path = (self.data_path / path_str).resolve()
@@ -82,7 +91,7 @@ class Fetcher:
         if not repo_path.is_dir():
             check_call(['datalad', 'install', repo_url],
                        cwd=self.data_path)
-        if not self.have_file(file_path):
+        if not have_file(file_path):
             check_call(['datalad', 'get', file_str], cwd=repo_path)
         return file_path
 
@@ -117,6 +126,13 @@ class Fetcher:
 
 fetcher = Fetcher()
 DATA_PATH = fetcher.data_path
+
+
+def skip_without_file(path):
+    return pytest.mark.skipif(
+        not have_file(path),
+        reason=f'This test requires file {path}')
+
 
 # Example files
 JC_EG_FUNC = (DATA_PATH / 'ds000009' / 'sub-07' / 'func' /
