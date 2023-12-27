@@ -190,7 +190,7 @@ def load(file_path, format=None):
     # TODO get affine, too
     dataobj = FDataObj(img.dataobj)
     return xr.DataArray(da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
-                        dims=["i", "j", "k", "time"],
+                        dims=["i", "j", "k", "time"][:dataobj.ndim],
                         coords=coords,
                         # zarr can't serialize numpy arrays as attrs
                         attrs={"meta": meta}) #"header": dict(img.header),

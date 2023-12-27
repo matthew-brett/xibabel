@@ -138,6 +138,6 @@ def skip_without_file(path):
 JC_EG_FUNC = (DATA_PATH / 'ds000009' / 'sub-07' / 'func' /
               'sub-07_task-balloonanalogrisktask_bold.nii.gz')
 JC_EG_ANAT= (DATA_PATH / 'ds000009' / 'sub-07' / 'anat' /
-             'sub-07/anat/sub-07_T1w.nii.gz')
+             'sub-07_T1w.nii.gz')
 JH_EG_FUNC = (DATA_PATH / 'ds000105' / 'sub-1' / 'func' /
               'sub-1_task-objectviewing_run-01_bold.nii.gz')

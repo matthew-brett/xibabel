@@ -8,8 +8,9 @@ import numpy as np
 import nibabel as nib
 
 from xibabel import loaders
-from xibabel.loaders import FDataObj, load_nibabel
-from xibabel.testing import JC_EG_FUNC, JH_EG_FUNC, skip_without_file
+from xibabel.loaders import FDataObj, load_nibabel, load
+from xibabel.testing import (JC_EG_FUNC, JC_EG_ANAT, JH_EG_FUNC,
+                             skip_without_file)
 
 
 rng = np.random.default_rng()
@@ -148,3 +149,14 @@ def test_nib_loader_jc():
 def test_nib_loader_jh():
     img, meta = load_nibabel(JH_EG_FUNC)
     assert meta == {'RepetitionTime': 2.5}
+
+
+@skip_without_file(JC_EG_ANAT)
+def test_anat_loader():
+    img, meta = load_nibabel(JC_EG_ANAT)
+    assert img.shape == (176, 256, 256)
+    assert meta == {'xib-FrequencyEncodingDirection': 'j',
+                    'PhaseEncodingDirection': 'i',
+                    'SliceEncodingDirection': 'k'}
+    ximg = load(JC_EG_ANAT)
+    assert ximg.shape == (176, 256, 256)
