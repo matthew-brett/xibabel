@@ -64,10 +64,12 @@ class Fetcher:
     def get_data_path(self):
         return os.environ.get('XIB_DATA_PATH', '~/.xibabel/data')
 
-    def _have_local_file(self, path):
+    def have_file(self, path):
+        if not path.is_file():  # Can be True regardless on Windows.
+            return False
         if path.is_symlink():  # Appears to be True on Unices.
-            return path.is_file()
-        # By exploration on Windows
+            return True
+        # By exploration on Windows.
         with open(path, 'rb') as fobj:
             start = fobj.read(15)
         return start != b'/annex/objects/'
@@ -80,7 +82,7 @@ class Fetcher:
         if not repo_path.is_dir():
             check_call(['datalad', 'install', repo_url],
                        cwd=self.data_path)
-        if not self._have_local_file(file_path):
+        if not self.have_file(file_path):
             check_call(['datalad', 'get', file_str], cwd=repo_path)
         return file_path
 
