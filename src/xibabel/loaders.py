@@ -11,6 +11,7 @@ import psutil
 
 import nibabel as nib
 from nibabel.spatialimages import HeaderDataError
+from nibabel.filename_parser import splitext_addext
 import xarray as xr
 import dask.array as da
 
@@ -167,45 +168,30 @@ def load(file_path, format=None):
         return load_zarr(file_path)
     is_bids = format and format.lower() == "bids"
     if format and not is_bids:
-        raise ValueError(f"Unknown format '{format}': must be either 'bids' or 'zarr'")
+        raise ValueError(
+            f"Unknown format '{format}': must be None, 'bids' or 'zarr'")
     img, meta = load_nibabel(file_path)
     # cut off .nii an .nii.gz
-    base = file_path.name.split('.')[0]
-    sidecar_file = file_path.with_name(base+".json")
     if is_bids:
+        base = Path(splitext_addext(file_path)[0])
+        sidecar_file = base.with_suffix(".json")
         if not sidecar_file.exists():
             logger.warn("Invalid BIDS image, file missing %s", sidecar_file)
             return InvalidBIDSImage(data=img, error="sidecar file missing", )
-            TR = 1 # TODO or try to get it from img
         with sidecar_file.open() as f:
             sidecar = json.load(f)
-        sidecar = merge(meta, sidecar)
-        TR = sidecar["RepetitionTime"]
-    else:
-        sidecar = {}
-        TR = 1
-    if img.ndim == 4:
+        meta = merge(meta, sidecar)
+    coords = {}
+    if (TR := meta.get("RepetitionTime")):
         time_coords = np.arange(0, (img.shape[-1]) * TR, TR)
-        # leaving this as img.dataobj will error on inside numeric routine of
-        # numpy during xarray.DataArray creation if not all coords are
-        # specified
-        #  > numpy/core/numeric.py:330, in full(shape, fill_value, dtype, order, like)
-        # ValueError: could not broadcast input array from shape (40,64,64,121)
-        # into shape (1,1,1,121)
-    # Anatomical scans don't have time... is this a dumb thing to do?
-    elif img.ndim == 3:
-        time_coords = np.array([0])
-        img.dataobj = img.dataobj[..., np.newaxis]
-    else:
-        return InvalidBIDSImage(data=img, error="data not 3- or 4-dimensional")
-    #return data, sidecar
+        coords = {
+            "time":
+            xr.DataArray(time_coords, dims=["time"], attrs={"units": "s"})}
     # TODO get affine, too
     dataobj = FDataObj(img.dataobj)
     return xr.DataArray(da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
                         dims=["i", "j", "k", "time"],
-                        coords={ "time": xr.DataArray(time_coords, dims=["time"],
-                                                      attrs={"units": "s"})
-                                },
+                        coords=coords,
                         # zarr can't serialize numpy arrays as attrs
-                        attrs={"sidecar": sidecar, })#"header": dict(img.header),
+                        attrs={"meta": meta}) #"header": dict(img.header),
                                #"affine": img.affine.tolist()})
