@@ -72,8 +72,8 @@ class Fetcher:
         if not repo_path.is_dir():
             check_call(['datalad', 'install', repo_url],
                        cwd=self.data_path)
-        if not file_path.is_file():
-            check_call(['datalad', 'get', file_str], cwd=repo_path)
+        # Run datalad get regardless - very quick if file already present.
+        check_call(['datalad', 'get', file_str], cwd=repo_path)
         assert file_path.is_file()
         return file_path
 
