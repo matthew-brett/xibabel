@@ -98,10 +98,10 @@ def test_nibabel_tr(tmp_path):
     assert meta == {'RepetitionTime': 1.0}
     img.header.set_xyzt_units('mm', 'msec')
     back_img, meta = out_back(img, out_path)
-    assert meta == {'RepetitionTime': 1000.0}
+    assert meta == {'RepetitionTime': 1 / 1000}
     img.header.set_xyzt_units('mm', 'usec')
     back_img, meta = out_back(img, out_path)
-    assert meta == {'RepetitionTime': 1_000_000}
+    assert meta == {'RepetitionTime': 1 / 1_000_000}
 
 
 def test_nibabel_slice_timing(tmp_path):

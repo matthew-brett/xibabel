@@ -101,8 +101,8 @@ dim_recoder = {
 
 time_unit_scaler = {
     'sec': 1,
-    'msec': 1000,
-    'usec': 1_000_000}
+    'msec': 1 / 1000,
+    'usec': 1 / 1_000_000}
 
 
 class NiftiWrapper:
