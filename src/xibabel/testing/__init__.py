@@ -64,6 +64,17 @@ class Fetcher:
     def get_data_path(self):
         return os.environ.get('XIB_DATA_PATH', '~/.xibabel/data')
 
+    def _have_local_file(self, path):
+        # On Windows, is_file is True even for not-present files.
+        if path.is_file():
+            return True
+        if path.is_symlink():  # Appears to be True on Unices.
+            return False
+        # By exploration.
+        with open(path, 'rb') as fobj:
+            start = fobj.read(15)
+        return start != b'/annex/objects/'
+
     def _get_datalad_file(self, path_str, repo_url):
         path_str = self._source2path_str(path_str)
         file_path = (self.data_path / path_str).resolve()
@@ -72,9 +83,8 @@ class Fetcher:
         if not repo_path.is_dir():
             check_call(['datalad', 'install', repo_url],
                        cwd=self.data_path)
-        # Run datalad get regardless - very quick if file already present.
-        check_call(['datalad', 'get', file_str], cwd=repo_path)
-        assert file_path.is_file()
+        if not self._have_local_file(file_path):
+            check_call(['datalad', 'get', file_str], cwd=repo_path)
         return file_path
 
     def _source2path_str(self, path_or_str):
