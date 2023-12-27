@@ -7,3 +7,6 @@
 [submodule "xibabel/testing/ds000105"]
 	path = src/xibabel/testing/ds000105
 	url = https://datasets.datalad.org/openneuro/ds000105
+[submodule "src/xibabel/testing/ds000009"]
+	path = src/xibabel/testing/ds000009
+	url = https://datasets.datalad.org/openneuro/ds000009
