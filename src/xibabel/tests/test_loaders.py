@@ -160,3 +160,14 @@ def test_anat_loader():
                     'SliceEncodingDirection': 'k'}
     ximg = load(JC_EG_ANAT)
     assert ximg.shape == (176, 256, 256)
+    assert ximg.name == JC_EG_ANAT.name.split('.')[0]
+
+
+@skip_without_file(JC_EG_ANAT)
+def test_round_trip(tmp_path):
+    ximg = load(JC_EG_ANAT)
+    assert ximg.shape == (176, 256, 256)
+    out_path = tmp_path / 'out.ximg'
+    ximg.to_zarr(out_path)
+    back = load(out_path)
+    assert back.shape == (176, 256, 256)

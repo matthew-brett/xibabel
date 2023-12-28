@@ -82,10 +82,6 @@ class FDataObj:
         return sizes
 
 
-def load_zarr(file_path):
-    raise NotImplementedError
-
-
 @dataclass
 class InvalidBIDSImage:
     data: None
@@ -161,9 +157,23 @@ def load_nibabel(file_path):
     return img, wrap_header(img.header).to_meta()
 
 
+def guess_format(file_path):
+    if file_path.suffix == '.json':
+        return 'bids'
+    if file_path.suffix == '.ximg':
+        return 'zarr'
+    return None
+
+
+def load_zarr(file_path):
+    return xr.load_dataarray(file_path, engine='zarr')
+
+
 def load(file_path, format=None):
     if isinstance(file_path, str):
         file_path = Path(file_path)
+    if format is None:
+        format = guess_format(file_path)
     if format and format.lower() == "zarr":
         return load_zarr(file_path)
     is_bids = format and format.lower() == "bids"
@@ -171,9 +181,9 @@ def load(file_path, format=None):
         raise ValueError(
             f"Unknown format '{format}': must be None, 'bids' or 'zarr'")
     img, meta = load_nibabel(file_path)
+    base = Path(splitext_addext(file_path)[0])
     # cut off .nii an .nii.gz
     if is_bids:
-        base = Path(splitext_addext(file_path)[0])
         sidecar_file = base.with_suffix(".json")
         if not sidecar_file.exists():
             logger.warn("Invalid BIDS image, file missing %s", sidecar_file)
@@ -192,6 +202,7 @@ def load(file_path, format=None):
     return xr.DataArray(da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
                         dims=["i", "j", "k", "time"][:dataobj.ndim],
                         coords=coords,
+                        name=base.name,
                         # zarr can't serialize numpy arrays as attrs
                         attrs={"meta": meta}) #"header": dict(img.header),
                                #"affine": img.affine.tolist()})

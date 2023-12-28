@@ -9,6 +9,8 @@ from .fetcher import Fetcher
 
 
 fetcher = Fetcher(config_path=Path(__file__).parent)
+get_set = fetcher.get_set
+get_file = fetcher.get_file
 DATA_PATH = fetcher.data_path
 skip_without_file = fetcher.skip_without_file
 
