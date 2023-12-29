@@ -192,12 +192,44 @@ class XibFileError(Exception):
     """
 
 
+_JSON_MARKER = '__json__'
+
+
+def load_json_attrs(attrs):
+    out = {}
+    for key, value in attrs.items():
+        if (isinstance(value, list) and
+            len(value) == 2 and
+            value[0] == _JSON_MARKER):
+            value = json.loads(value[1])
+        out[key] = value
+    return out
+
+
+def _1d_arrayable(v):
+    try:
+        arr = np.array(v)
+    except ValueError:
+        return False
+    return arr.ndim < 2
+
+
+def save_json_attrs(attrs):
+    out = {}
+    for key, value in attrs.items():
+        if (isinstance(value, dict) or
+            (isinstance(value, (list, tuple)) and not _1d_arrayable(value))):
+            value = [_JSON_MARKER, json.dumps(value)]
+        out[key] = value
+    return out
+
+
 def load_netcdf(file_path):
     if importlib.util.find_spec('netCDF4') is None:
         raise XibFileError('Please install netcdf4 module to load netCDF')
     img = xr.load_dataarray(file_path,
                             engine=xr.backends.NetCDF4BackendEntrypoint)
-    img.attrs = json.loads(img.attrs.get('__json__', ''))
+    img.attrs = load_json_attrs(img.attrs)
     return img
 
 
@@ -249,6 +281,6 @@ def save(obj, file_path, format=None):
         return obj.to_zarr(file_path, mode='w')
     elif format == 'netcdf':
         out = obj.copy()  # Shallow copy by default.
-        out.attrs = {'__json__': json.dumps(obj.attrs)}
+        out.attrs = save_json_attrs(out.attrs)
         return out.to_netcdf(file_path)
     raise XibFileError(f'Saving in format "{format}" not yet supported')
