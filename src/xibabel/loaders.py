@@ -215,7 +215,7 @@ def load(file_path, format=None):
     is_bids = format and format == "bids"
     if format and not is_bids:
         raise XibFileError(
-            f"Unknown format '{format}': must be None, 'bids' or 'zarr'")
+            f"Unknown format '{format}': must be None, 'bids', 'zarr', or 'netcdf'")
     img, meta = load_nibabel(file_path)
     base = Path(splitext_addext(file_path)[0])
     # cut off .nii an .nii.gz
