@@ -233,15 +233,13 @@ def load(file_path, format=None):
         coords = {
             "time":
             xr.DataArray(time_coords, dims=["time"], attrs={"units": "s"})}
-    # TODO get affine, too
     dataobj = FDataObj(img.dataobj)
     return xr.DataArray(da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
                         dims=["i", "j", "k", "time"][:dataobj.ndim],
                         coords=coords,
                         name=base.name,
-                        # zarr can't serialize numpy arrays as attrs
+                        # NB: zarr can't serialize numpy arrays as attrs
                         attrs={"meta": meta}) #"header": dict(img.header),
-                               #"affine": img.affine.tolist()})
 
 
 def save(obj, file_path, format=None):
