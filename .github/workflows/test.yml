@@ -50,7 +50,7 @@ jobs:
         if: runner.os == 'Windows'
       - name: Install
         run: |
-          pip install -e '.[test,developer]'
+          pip install -e '.[test,developer,optional]'
       - name: Cache Dataset
         uses: actions/cache@v3
         with:

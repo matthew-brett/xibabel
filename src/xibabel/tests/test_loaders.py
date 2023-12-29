@@ -1,17 +1,22 @@
 """ Test loaders
 """
 
+from pathlib import Path
 import os
+from importlib.util import find_spec
 
 import numpy as np
 
 import nibabel as nib
 
 from xibabel import loaders
-from xibabel.loaders import FDataObj, load_nibabel, load
+from xibabel.loaders import (FDataObj, load_nibabel, load, save,
+                             _guess_format)
+from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_ANAT, JH_EG_FUNC,
-                             skip_without_file)
+                             skip_without_file, fetcher)
 
+import pytest
 
 rng = np.random.default_rng()
 
@@ -88,20 +93,22 @@ def test_nibabel_tr(tmp_path):
     img = nib.Nifti1Image(arr, np.eye(4), None)
     out_path = tmp_path / 'test.nii'
     back_img, meta = out_back(img, out_path)
-    assert meta == {}
+    exp_meta = {'xib-affines': {'aligned': np.eye(4).tolist()}}
+    assert meta == exp_meta
     arr = np.zeros((2, 3, 4, 6))
     img = nib.Nifti1Image(arr, np.eye(4), None)
     back_img, meta = out_back(img, out_path)
-    assert meta == {}
+    assert meta == exp_meta
     img.header.set_xyzt_units('mm', 'sec')
     back_img, meta = out_back(img, out_path)
-    assert meta == {'RepetitionTime': 1.0}
+    exp_meta.update({'RepetitionTime': 1.0})
+    assert meta == exp_meta
     img.header.set_xyzt_units('mm', 'msec')
     back_img, meta = out_back(img, out_path)
-    assert meta == {'RepetitionTime': 1 / 1000}
+    assert meta['RepetitionTime'] == 1 / 1000
     img.header.set_xyzt_units('mm', 'usec')
     back_img, meta = out_back(img, out_path)
-    assert meta == {'RepetitionTime': 1 / 1_000_000}
+    assert meta['RepetitionTime'] == 1 / 1_000_000
 
 
 def test_nibabel_slice_timing(tmp_path):
@@ -110,15 +117,17 @@ def test_nibabel_slice_timing(tmp_path):
     img = nib.Nifti1Image(arr, np.eye(4), None)
     out_path = tmp_path / 'test.nii'
     back_img, meta = out_back(img, out_path)
-    assert meta == {}
+    exp_meta = {'xib-affines': {'aligned': np.eye(4).tolist()}}
+    assert meta == exp_meta
     img.header.set_dim_info(None, None, 1)
     back_img, meta = out_back(img, out_path)
-    assert meta == {'SliceEncodingDirection': 'j'}
+    assert meta == merge(exp_meta, {'SliceEncodingDirection': 'j'})
     img.header.set_dim_info(1, 0, 2)
     back_img, meta = out_back(img, out_path)
-    exp_dim = {'PhaseEncodingDirection': 'i',
-               'xib-FrequencyEncodingDirection': 'j',
-               'SliceEncodingDirection': 'k'}
+    exp_dim = merge(exp_meta,
+                    {'PhaseEncodingDirection': 'i',
+                     'xib-FrequencyEncodingDirection': 'j',
+                     'SliceEncodingDirection': 'k'})
     assert meta == exp_dim
     img.header.set_slice_duration(1 / 4)
     back_img, meta = out_back(img, out_path)
@@ -136,28 +145,51 @@ def test_nibabel_slice_timing(tmp_path):
     assert meta == exp_timed
 
 
+def test_guess_format():
+    root = Path('foo') / 'bar' / 'baz'
+    assert _guess_format(root) is None
+    assert _guess_format(root.with_suffix('.json')) == 'bids'
+    assert _guess_format(root.with_suffix('.ximg')) == 'zarr'
+    assert _guess_format(root.with_suffix('.nc')) == 'netcdf'
+
+
 @skip_without_file(JC_EG_FUNC)
 def test_nib_loader_jc():
     img, meta = load_nibabel(JC_EG_FUNC)
     assert meta == {'xib-FrequencyEncodingDirection': 'i',
                     'PhaseEncodingDirection': 'j',
                     'SliceEncodingDirection': 'k',
-                    'RepetitionTime': 2.0}
+                    'RepetitionTime': 2.0,
+                    'xib-affines':
+                    {'scanner': img.affine.tolist()}
+                   }
 
 
 @skip_without_file(JH_EG_FUNC)
 def test_nib_loader_jh():
     img, meta = load_nibabel(JH_EG_FUNC)
-    assert meta == {'RepetitionTime': 2.5}
+    assert meta == {'RepetitionTime': 2.5,
+                    'xib-affines':
+                    {'scanner': img.affine.tolist()}
+                   }
+
+
+
+if fetcher.have_file(JC_EG_ANAT):
+    img, meta = load_nibabel(JC_EG_ANAT)
+    JC_EG_ANAT_META = {'xib-FrequencyEncodingDirection': 'j',
+                        'PhaseEncodingDirection': 'i',
+                        'SliceEncodingDirection': 'k',
+                        'xib-affines':
+                       {'scanner': img.affine.tolist()}
+                      }
 
 
 @skip_without_file(JC_EG_ANAT)
 def test_anat_loader():
     img, meta = load_nibabel(JC_EG_ANAT)
     assert img.shape == (176, 256, 256)
-    assert meta == {'xib-FrequencyEncodingDirection': 'j',
-                    'PhaseEncodingDirection': 'i',
-                    'SliceEncodingDirection': 'k'}
+    assert meta == JC_EG_ANAT_META
     ximg = load(JC_EG_ANAT)
     assert ximg.shape == (176, 256, 256)
     assert ximg.name == JC_EG_ANAT.name.split('.')[0]
@@ -168,6 +200,23 @@ def test_round_trip(tmp_path):
     ximg = load(JC_EG_ANAT)
     assert ximg.shape == (176, 256, 256)
     out_path = tmp_path / 'out.ximg'
-    ximg.to_zarr(out_path)
+    save(ximg, out_path)
     back = load(out_path)
     assert back.shape == (176, 256, 256)
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    # And again
+    save(ximg, out_path)
+    back = load(out_path)
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
+
+
+@pytest.mark.skipif(not find_spec('netCDF4'),
+                    reason='Need netCDF4 module for test')
+@skip_without_file(JC_EG_ANAT)
+def test_round_trip_netcdf(tmp_path):
+    ximg = load(JC_EG_ANAT)
+    out_path = tmp_path / 'out.nc'
+    save(ximg, out_path)
+    back = load(out_path)
+    assert back.shape == (176, 256, 256)
+    assert back.attrs == {'meta': JC_EG_ANAT_META}

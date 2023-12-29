@@ -44,3 +44,6 @@ test = [
     'pyyaml',
     'pytest-doctestplus',
 ]
+optional = [
+    'netcdf4'
+]

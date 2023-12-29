@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 from dataclasses import dataclass
 import logging
+import importlib
 
 import numpy as np
 import psutil
@@ -140,10 +141,23 @@ class NiftiWrapper:
             return None
         return time_unit_scaler[time_units] * time_zoom
 
+    def get_affines(self):
+        """ Collect valid affines
+        """
+        hdr = self.header
+        affines = {}
+        for affine_type in 'qform', 'sform':
+            code = hdr.get_value_label(affine_type + '_code')
+            if code != 'unknown':
+                affine = getattr(hdr, 'get_' + affine_type)()
+                affines[code] = affine.tolist()
+        return affines
+
     def to_meta(self):
         meta = self.get_dim_labels()
         meta['SliceTiming'] = self.get_slice_timing()
         meta['RepetitionTime'] = self.get_repetition_time()
+        meta['xib-affines'] = self.get_affines()
         return {k: v for k, v in meta.items() if v is not None}
 
 
@@ -157,11 +171,15 @@ def load_nibabel(file_path):
     return img, wrap_header(img.header).to_meta()
 
 
-def guess_format(file_path):
-    if file_path.suffix == '.json':
+def _guess_format(file_path):
+    suff = Path(file_path).suffix
+    if suff == '.json':
         return 'bids'
-    if file_path.suffix == '.ximg':
+    if suff == '.ximg':
         return 'zarr'
+    if suff == '.nc':
+        return 'netcdf'
+    # Default defers to Nibabel.
     return None
 
 
@@ -169,16 +187,34 @@ def load_zarr(file_path):
     return xr.load_dataarray(file_path, engine='zarr')
 
 
+class XibFileError(Exception):
+    """ Error from Xibabel file operations
+    """
+
+
+def load_netcdf(file_path):
+    if importlib.util.find_spec('netCDF4') is None:
+        raise XibFileError('Please install netcdf4 module to load netCDF')
+    img = xr.load_dataarray(file_path,
+                            engine=xr.backends.NetCDF4BackendEntrypoint)
+    img.attrs = json.loads(img.attrs.get('__json__', ''))
+    return img
+
+
 def load(file_path, format=None):
     if isinstance(file_path, str):
         file_path = Path(file_path)
     if format is None:
-        format = guess_format(file_path)
-    if format and format.lower() == "zarr":
+        format = _guess_format(file_path)
+    else:
+        format = format.lower()
+    if format and format == "zarr":
         return load_zarr(file_path)
-    is_bids = format and format.lower() == "bids"
+    if format and format == "netcdf":
+        return load_netcdf(file_path)
+    is_bids = format and format == "bids"
     if format and not is_bids:
-        raise ValueError(
+        raise XibFileError(
             f"Unknown format '{format}': must be None, 'bids' or 'zarr'")
     img, meta = load_nibabel(file_path)
     base = Path(splitext_addext(file_path)[0])
@@ -206,3 +242,15 @@ def load(file_path, format=None):
                         # zarr can't serialize numpy arrays as attrs
                         attrs={"meta": meta}) #"header": dict(img.header),
                                #"affine": img.affine.tolist()})
+
+
+def save(obj, file_path, format=None):
+    file_path = Path(file_path)
+    format = _guess_format(file_path)
+    if format == 'zarr':
+        return obj.to_zarr(file_path, mode='w')
+    elif format == 'netcdf':
+        out = obj.copy()  # Shallow copy by default.
+        out.attrs = {'__json__': json.dumps(obj.attrs)}
+        return out.to_netcdf(file_path)
+    raise XibFileError(f'Saving in format "{format}" not yet supported')
