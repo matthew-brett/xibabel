@@ -2,9 +2,48 @@
 requires = ["flit_core >=2,<4"]
 build-backend = "flit_core.buildapi"
 
-[tool.flit.metadata]
-module = "xibabel"
-author = "Matthew Brett"
-author-email = "matthew.brett@gmail.com"
+[project]
+name = "xibabel"
+authors = [
+    {name = "Matthew Brett", email = "matthew.brett@gmail.com"},
+    {name = "Paul Ivanov", email = "pi@berkeley.edu"},
+    {name = "Christopher J. Markiewicz", email = "markiewicz@stanford.edu"}
+]
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["version", "description"]
 home-page = "https://github.com/matthew-brett/xibabel"
 classifiers = ['License :: OSI Approved :: BSD License']
+dependencies = [
+    'xarray',
+    'dask',
+    'nibabel',
+    'nipy',
+    'psutil'
+]
+
+[project.scripts]
+xib-get-test-set = "xibabel.testing.__main__:main"
+
+[project.optional-dependencies]
+developer = [
+    'pre-commit',
+    'nbclassic',
+    'jupytext',
+    'dicom_parser',
+    'ipywidgets',
+    'zarr'
+]
+docs = [
+    'sphinx>=7.0',
+    'numpydoc>=1.6.0',
+    'matplotlib',
+    'ipython'
+]
+test = [
+    'pyyaml',
+    'pytest-doctestplus',
+]
+optional = [
+    'netcdf4'
+]

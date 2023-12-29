@@ -1,6 +1,6 @@
-[submodule "testing/insular-dicoms"]
-	path = testing/insular-dicoms
+[submodule "xibabel/testing/insular-dicoms"]
+	path = src/xibabel/testing/insular-dicoms
 	url = https://github.com/matthew-brett/insular-dicoms
-[submodule "testing/example-dicom-functional"]
-	path = testing/example-dicom-functional
+[submodule "xibabel/testing/example-dicom-functional"]
+	path = src/xibabel/testing/example-dicom-functional
 	url = https://github.com/datalad/example-dicom-functional

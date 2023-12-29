@@ -16,15 +16,16 @@ jupyter:
 
 ## Requirements
 
-Optionally execute the next cell to ensure you have the packages necessary to run this notebook, and also to run `git submodule update --init` to get the data we'll refer to, in case you have not already done that.
+Optionally execute the next cell to ensure you have the packages necessary to
+run this notebook, and also to run `git submodule update --init` to get the
+data we'll refer to, in case you have not already done that.
 
 
 Don't forget to run:
 
 ```
-pip install -r devel_requirements.txt
+pip install '.[developer]'
 ```
-
 
 You will also need:
 
@@ -93,7 +94,7 @@ def show_slice(i):
 anat_series.data.shape
 ```
 
-Looking at the slices, let's call these dimensions 
+Looking at the slices, let's call these dimensions
 
 `(y, z, x)`
 
@@ -133,7 +134,7 @@ bold_series.data.shape
 len(bold_series)
 ```
 
-This isn't great. Luckily the README for the data tells us 
+This isn't great. Luckily the README for the data tells us
 >   A full single run of a block design visual localizer experiment with
   six images categories, where each category appeared in two blocks.
   156 volumes.
@@ -202,7 +203,7 @@ da = xr.DataArray(data, dims=["x", "y", "z", "time"])
 da
 ```
 
-You'll note that the top of the previous cell includes not only the dimensions, but also the number of steps in that dimension. Here it is again: 
+You'll note that the top of the previous cell includes not only the dimensions, but also the number of steps in that dimension. Here it is again:
 
 > `xarray.DataArray`  (x: 80, y: 80, z: 35, time: 156)
 
@@ -287,7 +288,7 @@ Note the clear clockwise head rotation as you scrub the time from 0-310 and back
 
 ```{python}
 da3 = xr.DataArray(data,
-    dims=["x", "y", "z", "time"], 
+    dims=["x", "y", "z", "time"],
     coords={
         "x": range(0, data.shape[0]),
         "y": range(0, data.shape[1]),
@@ -299,7 +300,7 @@ da3
 We don't have to specify `coords` as a dictionary, so long as we preserve the same order that the dimensions were specified in.
 
 ```{python}
-da4 = xr.DataArray(data, dims=["x", "y", "z", "time"], 
+da4 = xr.DataArray(data, dims=["x", "y", "z", "time"],
              coords=[range(0, data.shape[0]),
                      range(0, data.shape[1]),
                      range(0, data.shape[2]),
@@ -334,7 +335,7 @@ da3.attrs
 ```
 
 ```{python}
-orig = xr.DataArray(data, dims=["x", "y", "z", "time"], 
+orig = xr.DataArray(data, dims=["x", "y", "z", "time"],
              coords=[range(0, data.shape[0]),
                      range(0, data.shape[1]),
                      range(0, data.shape[2]),

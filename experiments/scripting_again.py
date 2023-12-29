@@ -1,18 +1,10 @@
 """ Scripting again
-
-cd ../testing
-datalad install https://datasets.datalad.org/openneuro/ds000105
-datalad get ds000105/sub-1
 """
 
-from pathlib import Path
 
 import numpy as np
-rng = np.random.default_rng()
 
 import pandas as pd
-
-import matplotlib.pyplot as plt
 
 import xarray as xr
 
@@ -22,11 +14,18 @@ import xibabel as xib
 # For constructing the design.
 from nipy.modalities.fmri.design import block_design, natural_spline
 
-img_path_root = (Path(__file__).parent.parent / 'testing' /
-            'ds000105' /
-            'sub-1' /
-            'func' /
-            'sub-1_task-objectviewing_run-01_')
+from xibabel import testing
+
+rng = np.random.default_rng()
+
+# Get the data
+testing.get_set('minimal')
+
+img_path_root = (testing.DATA_PATH /
+                 'ds000105' /
+                 'sub-1' /
+                 'func' /
+                 'sub-1_task-objectviewing_run-01_')
 
 bold_path = img_path_root.with_name(img_path_root.name + 'bold.nii.gz')
 tsv_path = img_path_root.with_name(img_path_root.name + 'events.tsv')

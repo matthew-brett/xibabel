@@ -1,3 +1,0 @@
-xarray
-dask
-nibabel

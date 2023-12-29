@@ -1,0 +1,11 @@
+# Test sets
+minimal:
+  files:
+    - ds000105/sub-1/func/sub-1_task-objectviewing_run-01_bold.nii.gz
+    - ds000105/sub-1/func/sub-1_task-objectviewing_run-01_events.tsv
+    - ds000009/sub-07/func/sub-07_task-balloonanalogrisktask_bold.nii.gz
+    - ds000009/sub-07/func/sub-07_task-balloonanalogrisktask_events.tsv
+    - ds000009/sub-07/anat/sub-07_T1w.nii.gz
+medium:
+  superset_of:
+    - minimal

@@ -1,0 +1,80 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XIB_DATA_PATH: ~/.xibabel/data
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        python_version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python_version }}
+          allow-prereleases: true
+      - name: Install Datalad on Unices
+        uses: datalad/datalad-action/install@main
+        if: runner.os == 'Linux' || runner.os == 'macOS'
+      - name: Install Datalad on Windows
+        run: |
+          # https://handbook.datalad.org/en/latest/intro/installation.html
+          python -m pip install datalad-installer
+          datalad-installer git-annex -m datalad/git-annex:release
+          git config --global filter.annex.process "git-annex filter-process"
+          git config --global user.email "xibabel-developers@nipy.org"
+          git config --global user.name "Xibabel developers"
+          python -m pip install datalad
+        if: runner.os == 'Windows'
+      - name: Install
+        run: |
+          pip install -e '.[test,developer,optional]'
+      - name: Cache Dataset
+        uses: actions/cache@v3
+        with:
+          path: ${{ env.XIB_DATA_PATH }}
+          key: ${{ runner.os }}-ds105
+      - name: Get data
+        run: python -m xibabel.testing minimal
+      - name: Show environment
+        run: env
+      - name: Tests
+        run: |
+          pytest -v -v --doctest-plus src/xibabel
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install -e '.[test,developer]'
+      - name: Show environment
+        run: env
+      - name: Library tests
+        run: |
+          pytest -v -v -c bench.ini --doctest-plus src/xibabel

@@ -1,0 +1,11 @@
+# Test file locations
+datalad:
+  - repo: https://datasets.datalad.org/openneuro/ds000105
+    files:
+      - sub-1/func/sub-1_task-objectviewing_run-01_bold.nii.gz
+      - sub-1/func/sub-1_task-objectviewing_run-01_events.tsv
+  - repo: https://datasets.datalad.org/openneuro/ds000009
+    files:
+      - sub-07/func/sub-07_task-balloonanalogrisktask_bold.nii.gz
+      - sub-07/func/sub-07_task-balloonanalogrisktask_events.tsv
+      - sub-07/anat/sub-07_T1w.nii.gz
