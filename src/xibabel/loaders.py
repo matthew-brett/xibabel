@@ -319,6 +319,8 @@ def save(obj, file_path, format=None):
     if format == 'zarr':
         return obj.to_zarr(file_path, mode='w')
     elif format == 'netcdf':
+        if importlib.util.find_spec('netCDF4') is None:
+            raise XibFileError('Please install netcdf4 module to save netCDF')
         out = obj.copy()  # Shallow copy by default.
         out.attrs = _attrs2json_attrs(out.attrs)
         return out.to_netcdf(file_path)
