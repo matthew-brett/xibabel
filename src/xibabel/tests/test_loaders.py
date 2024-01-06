@@ -4,6 +4,7 @@
 from pathlib import Path
 import os
 from importlib.util import find_spec
+import json
 
 import numpy as np
 
@@ -11,7 +12,8 @@ import nibabel as nib
 
 from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_nibabel, load, save,
-                             _guess_format)
+                             _guess_format, _json_attrs2attrs,
+                             _attrs2json_attrs)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_ANAT, JH_EG_FUNC,
                              skip_without_file, fetcher)
@@ -151,6 +153,25 @@ def test_guess_format():
     assert _guess_format(root.with_suffix('.json')) == 'bids'
     assert _guess_format(root.with_suffix('.ximg')) == 'zarr'
     assert _guess_format(root.with_suffix('.nc')) == 'netcdf'
+
+
+def test_json_attrs():
+    # Test utilities to load / save JSON attrs
+    d = {'foo': 1, 'bar': [2, 3]}
+    assert _attrs2json_attrs(d) == d
+    assert _json_attrs2attrs(d) == d
+    dd = {'foo': 1, 'bar': {'baz': 4}}
+    ddj = {'foo': 1, 'bar': ['__json__', '{"baz": 4}']}
+    assert _attrs2json_attrs(dd) == ddj
+    assert _json_attrs2attrs(ddj) == dd
+    arr = rng.integers(0, 10, size=(3, 4)).tolist()
+    arr_j = json.dumps(arr)
+    dd = {'foo': 1, 'bar': {'baz': [2, 3]}, 'baf': arr}
+    ddj = {'foo': 1,
+           'bar': ['__json__', '{"baz": [2, 3]}'],
+           'baf': ['__json__', arr_j]}
+    assert _attrs2json_attrs(dd) == ddj
+    assert _json_attrs2attrs(ddj) == dd
 
 
 @skip_without_file(JC_EG_FUNC)

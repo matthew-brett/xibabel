@@ -195,7 +195,7 @@ class XibFileError(Exception):
 _JSON_MARKER = '__json__'
 
 
-def load_json_attrs(attrs):
+def _json_attrs2attrs(attrs):
     out = {}
     for key, value in attrs.items():
         if (isinstance(value, list) and
@@ -214,7 +214,7 @@ def _1d_arrayable(v):
     return arr.ndim < 2
 
 
-def save_json_attrs(attrs):
+def _attrs2json_attrs(attrs):
     out = {}
     for key, value in attrs.items():
         if (isinstance(value, dict) or
@@ -228,7 +228,7 @@ def load_netcdf(file_path):
     if importlib.util.find_spec('netCDF4') is None:
         raise XibFileError('Please install netcdf4 module to load netCDF')
     img = xr.open_dataarray(file_path, engine='netcdf4')
-    img.attrs = load_json_attrs(img.attrs)
+    img.attrs = _json_attrs2attrs(img.attrs)
     return img
 
 
@@ -280,6 +280,6 @@ def save(obj, file_path, format=None):
         return obj.to_zarr(file_path, mode='w')
     elif format == 'netcdf':
         out = obj.copy()  # Shallow copy by default.
-        out.attrs = save_json_attrs(out.attrs)
+        out.attrs = _attrs2json_attrs(out.attrs)
         return out.to_netcdf(file_path)
     raise XibFileError(f'Saving in format "{format}" not yet supported')
