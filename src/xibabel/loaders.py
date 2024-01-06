@@ -184,7 +184,7 @@ def _guess_format(file_path):
 
 
 def load_zarr(file_path):
-    return xr.load_dataarray(file_path, engine='zarr')
+    return xr.open_dataarray(file_path, engine='zarr')
 
 
 class XibFileError(Exception):
@@ -227,8 +227,7 @@ def save_json_attrs(attrs):
 def load_netcdf(file_path):
     if importlib.util.find_spec('netCDF4') is None:
         raise XibFileError('Please install netcdf4 module to load netCDF')
-    img = xr.load_dataarray(file_path,
-                            engine=xr.backends.NetCDF4BackendEntrypoint)
+    img = xr.open_dataarray(file_path, engine='netcdf4')
     img.attrs = load_json_attrs(img.attrs)
     return img
 
