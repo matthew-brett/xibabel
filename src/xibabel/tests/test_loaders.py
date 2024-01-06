@@ -13,7 +13,8 @@ import nibabel as nib
 from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_nibabel, load, save,
                              _guess_format, _json_attrs2attrs,
-                             _attrs2json_attrs)
+                             _attrs2json_attrs, _fp_url,
+                             XibFileError)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_ANAT, JH_EG_FUNC,
                              skip_without_file, fetcher)
@@ -148,11 +149,14 @@ def test_nibabel_slice_timing(tmp_path):
 
 
 def test_guess_format():
-    root = Path('foo') / 'bar' / 'baz'
-    assert _guess_format(root) is None
-    assert _guess_format(root.with_suffix('.json')) == 'bids'
-    assert _guess_format(root.with_suffix('.ximg')) == 'zarr'
-    assert _guess_format(root.with_suffix('.nc')) == 'netcdf'
+    root = Path('foo') / 'bar' / 'baz.suff'
+    for v, exp in ((root, None),
+                   (root.with_suffix('.nii'), None),
+                   (root.with_suffix('.json'), 'bids'),
+                   (root.with_suffix('.ximg'), 'zarr'),
+                   (root.with_suffix('.nc'), 'netcdf')):
+        assert _guess_format(v) == exp
+        assert _guess_format(str(v)) == exp
 
 
 def test_json_attrs():
@@ -172,6 +176,13 @@ def test_json_attrs():
            'baf': ['__json__', arr_j]}
     assert _attrs2json_attrs(dd) == ddj
     assert _json_attrs2attrs(ddj) == dd
+
+
+def test_fp_url():
+    assert _fp_url('foo/bar.baz') == (Path('foo') / 'bar.baz', False)
+    assert _fp_url('file://./bar.baz') == (Path('/bar.baz'), True)
+    assert _fp_url('http://dynevor.org/bar.baz') == (Path('/bar.baz'), True)
+    assert _fp_url(Path('foo') / 'bar.baz') == (Path('foo') / 'bar.baz', False)
 
 
 @skip_without_file(JC_EG_FUNC)
@@ -229,6 +240,9 @@ def test_round_trip(tmp_path):
     save(ximg, out_path)
     back = load(out_path)
     assert back.attrs == {'meta': JC_EG_ANAT_META}
+    # With url
+    back = load(f'file:///{out_path}')
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
 
 
 @pytest.mark.skipif(not find_spec('netCDF4'),
@@ -241,3 +255,6 @@ def test_round_trip_netcdf(tmp_path):
     back = load(out_path)
     assert back.shape == (176, 256, 256)
     assert back.attrs == {'meta': JC_EG_ANAT_META}
+    # With url, not yet supported
+    with pytest.raises(XibFileError):
+        back = load(f'file:///{out_path}')

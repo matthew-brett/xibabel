@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 import logging
 import importlib
+from urllib.parse import urlparse
 
 import numpy as np
 import psutil
@@ -172,12 +173,12 @@ def load_nibabel(file_path):
 
 
 def _guess_format(file_path):
-    suff = Path(file_path).suffix
-    if suff == '.json':
+    suff = str(file_path).split('.')[-1]
+    if suff == 'json':
         return 'bids'
-    if suff == '.ximg':
+    if suff == 'ximg':
         return 'zarr'
-    if suff == '.nc':
+    if suff == 'nc':
         return 'netcdf'
     # Default defers to Nibabel.
     return None
@@ -232,24 +233,63 @@ def load_netcdf(file_path):
     return img
 
 
-def load(file_path, format=None):
-    if isinstance(file_path, str):
-        file_path = Path(file_path)
-    if format is None:
-        format = _guess_format(file_path)
-    else:
-        format = format.lower()
-    if format and format == "zarr":
-        return load_zarr(file_path)
-    if format and format == "netcdf":
-        return load_netcdf(file_path)
-    is_bids = format and format == "bids"
+VALID_URL_SCHEMES = {
+    # List from https://docs.python.org/3/library/urllib.parse.html
+    'file',
+    'ftp',
+    'gopher',
+    'hdl',
+    'http',
+    'https',
+    'imap',
+    'mailto',
+    'mms',
+    'news',
+    'nntp',
+    'prospero',
+    'rsync',
+    'rtsp',
+    'rtsps',
+    'rtspu',
+    'sftp',
+    'shttp',
+    'sip',
+    'sips',
+    'snews',
+    'svn',
+    'svn+ssh',
+    'telnet',
+    'wais',
+    'ws',
+    'wss'}
+
+
+def _fp_url(url_or_path):
+    if hasattr(url_or_path, 'is_dir'):
+        return url_or_path, False
+    parsed = urlparse(url_or_path)
+    if parsed.scheme in VALID_URL_SCHEMES:  # is URL
+        return Path(parsed.path), True
+    return Path(url_or_path), False
+
+
+def load(url_or_path, format=None):
+    file_path, is_url = _fp_url(url_or_path)
+    format = _guess_format(file_path) if format is None else format.lower()
+    if format == "zarr":
+        return load_zarr(url_or_path)
+    if is_url:
+        raise XibFileError('Loading from URL only supported for Zarr'
+                           'format at the moment')
+    if format == "netcdf":
+        return load_netcdf(url_or_path)
+    is_bids = format == "bids"
     if format and not is_bids:
         raise XibFileError(
             f"Unknown format '{format}': must be None, 'bids', 'zarr', or 'netcdf'")
-    img, meta = load_nibabel(file_path)
-    base = Path(splitext_addext(file_path)[0])
-    # cut off .nii an .nii.gz
+    img, meta = load_nibabel(url_or_path)
+    # cut off .nii and .nii.gz
+    base = Path(splitext_addext(url_or_path)[0])
     if is_bids:
         sidecar_file = base.with_suffix(".json")
         if not sidecar_file.exists():
