@@ -245,8 +245,8 @@ def test_round_trip(tmp_path):
     assert back.attrs == {'meta': JC_EG_ANAT_META}
 
 
-@pytest.mark.skipif(not find_spec('netCDF4'),
-                    reason='Need netCDF4 module for test')
+@pytest.mark.skipif(not find_spec('h5netcdf'),
+                    reason='Need h5netcdf module for test')
 @skip_without_file(JC_EG_ANAT)
 def test_round_trip_netcdf(tmp_path):
     ximg = load(JC_EG_ANAT)
@@ -255,6 +255,5 @@ def test_round_trip_netcdf(tmp_path):
     back = load(out_path)
     assert back.shape == (176, 256, 256)
     assert back.attrs == {'meta': JC_EG_ANAT_META}
-    # With url, not yet supported
-    with pytest.raises(XibFileError):
-        back = load(f'file:///{out_path}')
+    back = load(f'file:///{out_path}')
+    assert back.attrs == {'meta': JC_EG_ANAT_META}

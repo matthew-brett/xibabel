@@ -14,6 +14,8 @@ import psutil
 import nibabel as nib
 from nibabel.spatialimages import HeaderDataError
 from nibabel.filename_parser import splitext_addext
+
+import fsspec
 import xarray as xr
 import dask.array as da
 
@@ -230,15 +232,21 @@ def _check_netcdf():
         raise XibFileError('Please install h5netcdf module to load netCDF')
 
 
-def load_netcdf(file_path):
+def load_netcdf(url_or_path):
     _check_netcdf()
-    img = xr.open_dataarray(file_path, engine='h5netcdf')
+    file_path, is_url = _fp_url(url_or_path)
+    if is_url:
+        with fsspec.open(url_or_path) as fobj:
+            img = xr.open_dataarray(fobj, engine='h5netcdf')
+    else:
+        img = xr.open_dataarray(file_path, engine='h5netcdf')
     img.attrs = _json_attrs2attrs(img.attrs)
     return img
 
 
 VALID_URL_SCHEMES = {
     # List from https://docs.python.org/3/library/urllib.parse.html
+    # plus others supported by fsspec (see below).
     'file',
     'ftp',
     'gopher',
@@ -265,7 +273,13 @@ VALID_URL_SCHEMES = {
     'telnet',
     'wais',
     'ws',
-    'wss'}
+    'wss',  # End of Python doc list.
+    # Following all supported via fsspec
+    'gs',  # Google Storage (fsspec)
+    'adl',  # Azure Data Lake Gen 1
+    'abfs',  # Azure Blob storage.
+    'az',  # Azure Data Lake Gen 2
+}
 
 
 def _fp_url(url_or_path):
@@ -282,18 +296,18 @@ def load(url_or_path, format=None):
     format = _guess_format(file_path) if format is None else format.lower()
     if format == "zarr":
         return load_zarr(url_or_path)
+    if format == "netcdf":
+        return load_netcdf(url_or_path)
     if is_url:
         raise XibFileError('Loading from URL only supported for Zarr'
                            'format at the moment')
-    if format == "netcdf":
-        return load_netcdf(url_or_path)
     is_bids = format == "bids"
     if format and not is_bids:
         raise XibFileError(
             f"Unknown format '{format}': must be None, 'bids', 'zarr', or 'netcdf'")
-    img, meta = load_nibabel(url_or_path)
     # cut off .nii and .nii.gz
     base = Path(splitext_addext(url_or_path)[0])
+    img, meta = load_nibabel(url_or_path)
     if is_bids:
         sidecar_file = base.with_suffix(".json")
         if not sidecar_file.exists():
