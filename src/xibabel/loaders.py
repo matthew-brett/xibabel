@@ -225,10 +225,14 @@ def _attrs2json_attrs(attrs):
     return out
 
 
+def _check_netcdf():
+    if importlib.util.find_spec('h5netcdf') is None:
+        raise XibFileError('Please install h5netcdf module to load netCDF')
+
+
 def load_netcdf(file_path):
-    if importlib.util.find_spec('netCDF4') is None:
-        raise XibFileError('Please install netcdf4 module to load netCDF')
-    img = xr.open_dataarray(file_path, engine='netcdf4')
+    _check_netcdf()
+    img = xr.open_dataarray(file_path, engine='h5netcdf')
     img.attrs = _json_attrs2attrs(img.attrs)
     return img
 
@@ -319,9 +323,8 @@ def save(obj, file_path, format=None):
     if format == 'zarr':
         return obj.to_zarr(file_path, mode='w')
     elif format == 'netcdf':
-        if importlib.util.find_spec('netCDF4') is None:
-            raise XibFileError('Please install netcdf4 module to save netCDF')
+        _check_netcdf()
         out = obj.copy()  # Shallow copy by default.
         out.attrs = _attrs2json_attrs(out.attrs)
-        return out.to_netcdf(file_path)
+        return out.to_netcdf(file_path, engine='h5netcdf')
     raise XibFileError(f'Saving in format "{format}" not yet supported')

@@ -45,5 +45,5 @@ test = [
     'pytest-doctestplus',
 ]
 optional = [
-    'netcdf4'
+    'h5netcdf'
 ]
