@@ -13,8 +13,7 @@ import nibabel as nib
 from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_nibabel, load, save,
                              _guess_format, _json_attrs2attrs,
-                             _attrs2json_attrs, _fp_url,
-                             XibFileError)
+                             _attrs2json_attrs, _fp_url)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_ANAT, JH_EG_FUNC,
                              skip_without_file, fetcher)
