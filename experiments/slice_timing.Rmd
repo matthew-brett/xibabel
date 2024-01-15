@@ -1,0 +1,128 @@
+# Slice-timing correction
+
+In this experiment, we will demonstrate slice-timing correction using SciPy's
+[make_interp_spline](https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.make_interp_spline.html)
+along with Xarray images.
+
+```{python}
+from pathlib import Path
+import numpy as np
+import matplotlib
+from matplotlib import pyplot as plt
+from scipy.interpolate import make_interp_spline
+import xarray as xr
+# %matplotlib inline
+
+import xibabel as xib
+```
+
+We will use a test functional image from OpenNeuro ds000009:
+
+```{python}
+import xibabel.testing
+func_path = xib.testing.JC_EG_FUNC
+_ = xib.testing.fetcher.get_file(func_path)
+```
+
+```{python}
+bold = xib.load(func_path, format='bids')
+bold
+```
+
+This image has an interleaved, ascending slice order:
+
+```{python}
+slice_times = bold.meta['SliceTiming']
+```
+
+```{python}
+# Adapted from https://textbook.nipraxis.org/slice_timing.html
+slice_idcs = np.arange(len(slice_times))
+slice_order = np.argsort(slice_times)
+acq_by_pos = np.argsort(slice_order)
+n_x = len(acq_by_pos) * 1.5  # Determines width of picture.
+picture = np.repeat(acq_by_pos[:, None], n_x, axis=1)
+cm = matplotlib.colors.LinearSegmentedColormap.from_list(
+    'light_gray', [[0.4] * 3, [1] * 3])
+plt.imshow(picture, cmap=cm, origin='lower')
+plt.box(on=False)
+plt.xticks([])
+plt.yticks(slice_idcs)
+plt.tick_params(axis='y', which='both', left=False)
+plt.ylabel('Position in space (0 = bottom)')
+for space_order, acq_order in zip(slice_idcs, acq_by_pos):
+    plt.text(n_x / 2, space_order, str(acq_order), va='center')
+plt.title('''\
+Slice acquisition order (center) by position (left)
+
+Acquisition order''');
+```
+
+To correct a slice, we need to determine the acquisition times of each voxel, and then interpolate at some
+other acquisition time. In this case, let's use the onset of volume acquisition (volume time + 0):
+
+```{python}
+k = 17
+offset = slice_times[k]
+slicek = bold[{'k': k}]
+filter = make_interp_spline(slicek.time + offset, slicek.T, k=3)
+filtered = filter(bold.time).T
+```
+
+Little change is evident from visually inspecting a time point within the slice:
+
+```{python}
+arrk = np.array(slicek)
+mn, mx = arrk.min(), arrk.max()
+plt.imshow(slicek[..., 20], vmin=mn, vmax=mx)
+plt.show()
+plt.imshow(filtered[..., 20], vmin=mn, vmax=mx)
+```
+
+However, differences can be detected:
+
+```{python}
+plt.imshow((slicek - filtered)[..., 20])
+```
+
+Note that `filtered` is a standard numpy array, so a wrapping function will need to explicitly create a new xarray image:
+
+```{python}
+type(filtered)
+```
+
+Now, let's write a function to perform slice-timing correction, and allow users to select an offset other than 0s:
+
+```{python}
+def slice_timing_correct(bold: xr.DataArray, target_offset: float=0, order: int=3) -> xr.DataArray:
+    # New output array
+    output = xr.zeros_like(bold)
+    output.attrs['meta'] = bold.attrs['meta'].copy()
+
+    # New time metadata
+    output['time'] = bold.time + target_offset
+    slice_timing = output.meta.pop('SliceTiming')
+
+    # If absent, BIDS specifies that SliceEncodingDirection is k
+    slice_dir = bold.meta.get('SliceEncodingDirection', 'k')
+    slice_axis = slice_dir[0]
+    # Flipped direction simply reverses the array
+    if slice_dir[1:] == '-':
+        slice_timing = slice_timing[::-1]
+
+    # Generate one spline model per slice. Note transpose, since the interpolated axis (time) must be first.
+    for k, offset in enumerate(slice_timing):
+        filter = make_interp_spline(bold.time + offset, bold[{slice_axis: k}].T, k=order)
+        output[{slice_axis: k}] = filter(output.time).T
+
+    return output
+```
+
+```{python}
+stc = slice_timing_correct(bold)
+stc
+```
+
+```{python}
+plt.imshow(stc.isel(k=17, time=20))
+```
