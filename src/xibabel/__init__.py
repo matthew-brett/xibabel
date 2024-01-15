@@ -74,7 +74,7 @@ def load_runs(data_path):
     # TODO: also load json sidecar and xib-ify the data here
     runs_paths = data_path.rglob("sub-*.nii.gz")
     # TODO exists check necessary for subjects not yet fetched by datalad
-    return dict((r.name, load(r)) for r in runs_paths if r.exists())
+    return dict((r.name, load(r, format='bids')) for r in runs_paths if r.exists())
 
 
 def diagnostics(run):
