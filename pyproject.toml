@@ -45,5 +45,7 @@ test = [
     'pytest-doctestplus',
 ]
 optional = [
-    'h5netcdf'
+    'h5netcdf',
+    'matplotlib',
+    'fsspec'
 ]
