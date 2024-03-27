@@ -1,0 +1,61 @@
+---
+jupyter:
+  jupytext:
+    notebook_metadata_filter: all,-language_info
+    split_at_heading: true
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.14.1
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+```{python}
+import xibabel as xib
+```
+
+Assuming `xibabel` is also importable:
+
+```{python}
+img = xib.load('foo.nii', format='BIDS')
+```
+
+`img` is now a labeled Xarray.
+
+Save out the metadata as we can in the BIDS format.
+
+On the way out, we'd make the relevant NIfTI format files:
+
+```{python}
+xib.save('foobar.nii', format='BIDS')
+```
+
+Save the same metadata in our own zarr format - maybe an unmodified zarr for the xarray for now.
+
+```{python}
+xib.save('foobar', format='zarr')
+```
+
+```{python}
+img_again = xib.load('foobar', format='zarr')
+```
+
+Maybe sometimes you need to:
+
+```{python}
+img_as_nii = xib.Nifti1Image('foobar', format='zarr')
+```
+
+Or:
+
+```{python}
+img_as_nii_again = xib.Nifti1Image.from_image(img_as_nii)
+```
+
+And I guess that last step would have to somehow preserve the metadata with the
+image in memory at least.
+
