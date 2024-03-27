@@ -184,7 +184,7 @@ def _guess_format(file_path):
 
 
 def load_zarr(file_path):
-    return xr.load_dataarray(file_path, engine='zarr')
+    return xr.open_dataarray(file_path, engine='zarr', chunks='auto')
 
 
 class XibFileError(Exception):
@@ -244,7 +244,8 @@ def load(file_path, format=None):
 
 def save(obj, file_path, format=None):
     file_path = Path(file_path)
-    format = _guess_format(file_path)
+    if format is None:
+        format = _guess_format(file_path)
     if format == 'zarr':
         return obj.to_zarr(file_path, mode='w')
     elif format == 'netcdf':
