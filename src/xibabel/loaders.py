@@ -184,7 +184,7 @@ def _guess_format(file_path):
 
 
 def load_zarr(file_path):
-    return xr.load_dataarray(file_path, engine='zarr')
+    return xr.open_dataarray(file_path, engine='zarr', chunks='auto')
 
 
 class XibFileError(Exception):
