@@ -244,7 +244,8 @@ def load(file_path, format=None):
 
 def save(obj, file_path, format=None):
     file_path = Path(file_path)
-    format = _guess_format(file_path)
+    if format is None:
+        format = _guess_format(file_path)
     if format == 'zarr':
         return obj.to_zarr(file_path, mode='w')
     elif format == 'netcdf':
