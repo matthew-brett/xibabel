@@ -299,8 +299,8 @@ def load(url_or_path, format=None):
     if format == "netcdf":
         return load_netcdf(url_or_path)
     if is_url:
-        raise XibFileError('Loading from URL only supported for Zarr'
-                           'format at the moment')
+        raise XibFileError('Loading from URL only supported for Zarr/netCDF '
+                           'formats for now.')
     is_bids = format == "bids"
     if format and not is_bids:
         raise XibFileError(

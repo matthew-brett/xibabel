@@ -269,3 +269,15 @@ def test_tornado(fserver):
     assert fserver.read_text('text_file') == 'some text'
     assert fserver.read_bytes('text_file') == b'some text'
     assert fserver.read_bytes('binary_file') == b'binary'
+
+
+@pytest.mark.skipif(not find_spec('h5netcdf'),
+                    reason='Need h5netcdf module for test')
+@skip_without_file(JC_EG_ANAT)
+def test_round_trip_netcdf_url(fserver):
+    ximg = load(JC_EG_ANAT)
+    save(ximg, fserver.server_path / 'out.nc')
+    out_url = fserver.make_url('out.nc')
+    back = load(out_url)
+    assert back.shape == (176, 256, 256)
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
