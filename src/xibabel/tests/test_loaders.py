@@ -153,7 +153,8 @@ def test_guess_format():
                    (root.with_suffix('.nii'), None),
                    (root.with_suffix('.json'), 'bids'),
                    (root.with_suffix('.ximg'), 'zarr'),
-                   (root.with_suffix('.nc'), 'netcdf')):
+                   (root.with_suffix('.nc'), 'netcdf'),
+                   (root.with_suffix('.foo'), None)):
         assert _guess_format(v) == exp
         assert _guess_format(str(v)) == exp
 
@@ -256,3 +257,15 @@ def test_round_trip_netcdf(tmp_path):
     assert back.attrs == {'meta': JC_EG_ANAT_META}
     back = load(f'file:///{out_path}')
     assert back.attrs == {'meta': JC_EG_ANAT_META}
+
+
+def test_tornado(fserver):
+    # Test static file server for URL reads
+    fserver.write_text_to('text_file', 'some text')
+    fserver.write_bytes_to('binary_file', b'binary')
+    response = fserver.get('text_file')
+    assert response.status_code == 200
+    assert response.text == 'some text'
+    assert fserver.read_text('text_file') == 'some text'
+    assert fserver.read_bytes('text_file') == b'some text'
+    assert fserver.read_bytes('binary_file') == b'binary'

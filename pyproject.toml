@@ -43,9 +43,12 @@ docs = [
 test = [
     'pyyaml',
     'pytest-doctestplus',
+    'pytest-xprocess',
+    'requests'
 ]
 optional = [
     'h5netcdf',
     'matplotlib',
-    'fsspec'
+    'fsspec',
+    'requests'
 ]
