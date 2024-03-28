@@ -4,6 +4,7 @@
 from pathlib import Path
 import os
 from importlib.util import find_spec
+import gzip
 import json
 
 import numpy as np
@@ -12,8 +13,9 @@ import nibabel as nib
 
 from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_nibabel, load, save,
-                             _guess_format, _json_attrs2attrs,
-                             _attrs2json_attrs, _fp_url)
+                             PROCESSORS, _json_attrs2attrs,
+                             _attrs2json_attrs, wrap_header,
+                             _path2class)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_ANAT, JH_EG_FUNC,
                              skip_without_file, fetcher)
@@ -86,7 +88,8 @@ def out_back(img, out_path):
     if out_path.is_file():
         os.unlink(out_path)
     nib.save(img, out_path)
-    return load_nibabel(out_path)
+    img = nib.load(out_path)
+    return img, wrap_header(img.header).to_meta()
 
 
 def test_nibabel_tr(tmp_path):
@@ -155,8 +158,21 @@ def test_guess_format():
                    (root.with_suffix('.ximg'), 'zarr'),
                    (root.with_suffix('.nc'), 'netcdf'),
                    (root.with_suffix('.foo'), None)):
-        assert _guess_format(v) == exp
-        assert _guess_format(str(v)) == exp
+
+        assert PROCESSORS.guess_format(v) == exp
+        assert PROCESSORS.guess_format(str(v)) == exp
+
+
+def test__path2class():
+    for url, exp_class in (
+        ('/foo/bar/sub-07_T1w.nii.gz', nib.Nifti1Image),
+        ('http://localhost:8999/sub-07_T1w.nii.gz', nib.Nifti1Image),
+        ('/foo/bar/sub-07_T1w.nii', nib.Nifti1Image),
+        ('http://localhost:8999/sub-07_T1w.nii', nib.Nifti1Image),
+        ('/foo/bar/sub-07_T1w.mnc', nib.Minc1Image),
+        ('http://localhost:8999/sub-07_T1w.mnc', nib.Minc1Image),
+    ):
+        assert _path2class(url) == exp_class
 
 
 def test_json_attrs():
@@ -178,53 +194,71 @@ def test_json_attrs():
     assert _json_attrs2attrs(ddj) == dd
 
 
-def test_fp_url():
-    assert _fp_url('foo/bar.baz') == (Path('foo') / 'bar.baz', False)
-    assert _fp_url('file://./bar.baz') == (Path('/bar.baz'), True)
-    assert _fp_url('http://dynevor.org/bar.baz') == (Path('/bar.baz'), True)
-    assert _fp_url(Path('foo') / 'bar.baz') == (Path('foo') / 'bar.baz', False)
-
-
 @skip_without_file(JC_EG_FUNC)
 def test_nib_loader_jc():
-    img, meta = load_nibabel(JC_EG_FUNC)
-    assert meta == {'xib-FrequencyEncodingDirection': 'i',
-                    'PhaseEncodingDirection': 'j',
-                    'SliceEncodingDirection': 'k',
-                    'RepetitionTime': 2.0,
-                    'xib-affines':
-                    {'scanner': img.affine.tolist()}
-                   }
+    img = nib.load(JC_EG_FUNC)
+    ximg = load_nibabel(JC_EG_FUNC)
+    assert ximg.meta == {'xib-FrequencyEncodingDirection': 'i',
+                         'PhaseEncodingDirection': 'j',
+                         'SliceEncodingDirection': 'k',
+                         'RepetitionTime': 2.0,
+                         'xib-affines':
+                         {'scanner': img.affine.tolist()}
+                        }
 
 
 @skip_without_file(JH_EG_FUNC)
 def test_nib_loader_jh():
-    img, meta = load_nibabel(JH_EG_FUNC)
-    assert meta == {'RepetitionTime': 2.5,
-                    'xib-affines':
-                    {'scanner': img.affine.tolist()}
-                   }
+    img = nib.load(JH_EG_FUNC)
+    ximg = load_nibabel(JH_EG_FUNC)
+    assert ximg.meta == {'RepetitionTime': 2.5,
+                         'xib-affines':
+                         {'scanner': img.affine.tolist()}
+                        }
 
 
 
 if fetcher.have_file(JC_EG_ANAT):
-    img, meta = load_nibabel(JC_EG_ANAT)
+    img = nib.load(JC_EG_ANAT)
+    ximg = load_nibabel(JC_EG_ANAT)
     JC_EG_ANAT_META = {'xib-FrequencyEncodingDirection': 'j',
-                        'PhaseEncodingDirection': 'i',
-                        'SliceEncodingDirection': 'k',
-                        'xib-affines':
+                       'PhaseEncodingDirection': 'i',
+                       'SliceEncodingDirection': 'k',
+                       'xib-affines':
                        {'scanner': img.affine.tolist()}
                       }
 
 
 @skip_without_file(JC_EG_ANAT)
 def test_anat_loader():
-    img, meta = load_nibabel(JC_EG_ANAT)
+    img = nib.load(JC_EG_ANAT)
+    meta = wrap_header(img.header).to_meta()
     assert img.shape == (176, 256, 256)
     assert meta == JC_EG_ANAT_META
     ximg = load(JC_EG_ANAT)
     assert ximg.shape == (176, 256, 256)
     assert ximg.name == JC_EG_ANAT.name.split('.')[0]
+    assert ximg.meta == meta
+
+
+@skip_without_file(JC_EG_ANAT)
+def test_anat_loader_http(fserver):
+    # Read from HTTP
+    # Original gz
+    name_gz = JC_EG_ANAT.name
+    out_path_gz = fserver.server_path / name_gz
+    out_path_gz.write_bytes(JC_EG_ANAT.read_bytes())
+    # Uncompressed, no gz
+    name_no_gz = JC_EG_ANAT.with_suffix('').name
+    out_path = fserver.server_path / name_no_gz
+    with gzip.open(JC_EG_ANAT, 'rb') as f:
+        out_path.write_bytes(f.read())
+    for name in (name_gz, name_no_gz):
+        out_url = fserver.make_url(name)
+        ximg = load(out_url)
+        assert ximg.shape == (176, 256, 256)
+        assert ximg.name == JC_EG_ANAT.name.split('.')[0]
+        assert ximg.meta == JC_EG_ANAT_META
 
 
 @skip_without_file(JC_EG_ANAT)
