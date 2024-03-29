@@ -79,4 +79,4 @@ def fserver(xprocess, tmp_path_factory, scope='session'):
     yield URLGetter(server_path)
 
     # clean up whole process tree afterwards
-    xprocess.getinfo("fsterver").terminate()
+    xprocess.getinfo("fserver").terminate()
