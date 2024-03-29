@@ -46,6 +46,8 @@ class URLGetter:
 
 @pytest.fixture
 def fserver(xprocess, tmp_path_factory, scope='session'):
+    # We need our own server rather than pytest-httpserver
+    # in order to support range requests.
 
     server_path = tmp_path_factory.mktemp("files")
 
