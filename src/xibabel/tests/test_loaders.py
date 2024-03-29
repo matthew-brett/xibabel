@@ -243,6 +243,7 @@ def test_anat_loader():
 
 @skip_without_file(JC_EG_ANAT)
 def test_anat_loader_http(fserver):
+    nb_img = nib.load(JC_EG_ANAT)
     # Read from HTTP
     # Original gz
     name_gz = JC_EG_ANAT.name
@@ -256,9 +257,13 @@ def test_anat_loader_http(fserver):
     for name in (name_gz, name_no_gz):
         out_url = fserver.make_url(name)
         ximg = load(out_url)
+        # Check we can read the data
+        ximg.compute()
+        # Check parameters
         assert ximg.shape == (176, 256, 256)
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
         assert ximg.meta == JC_EG_ANAT_META
+        assert np.all(np.array(ximg) == nb_img.get_fdata())
 
 
 @skip_without_file(JC_EG_ANAT)

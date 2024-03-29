@@ -339,6 +339,12 @@ def _path2class(filename):
     raise XibFileError(f'No single-file Nibabel class for {filename}')
 
 
+class FSFileHolder(FileHolder):
+
+    def __del__(self):
+        self.fileobj.close()
+
+
 def _nibabel2img_meta(fs_file):
     # Identify relevant files from fs_file
     # Make file_map with opened files.
@@ -346,9 +352,9 @@ def _nibabel2img_meta(fs_file):
         img = nib.load(fs_file.path)
     else:  # Not local - use stream interface.
         img_klass = _path2class(fs_file.full_name)
-        with fs_file as f:
-            fh = FileHolder(fs_file.full_name, f)
-            img = img_klass.from_file_map({'image': fh})
+        # We are passing out opened fsspec files.
+        fh = FileHolder(fs_file.full_name, fs_file.open())
+        img = img_klass.from_file_map({'image': fh})
     return img, wrap_header(img.header).to_meta()
 
 
