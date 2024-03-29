@@ -329,7 +329,7 @@ def load_nibabel(url_or_path, force_bids=False):
 
 
 def _comp_exts():
-    return tuple('.' + k for k in fsspec.compression.compr if k)
+    return tuple(f'.{ext}' for ext in fsspec.utils.compressions)
 
 
 def _path2class(filename):
