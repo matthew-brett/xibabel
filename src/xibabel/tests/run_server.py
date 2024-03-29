@@ -30,12 +30,16 @@ def get_parser():
                         help='Path from which to serve files')
     parser.add_argument('-p', '--port', default='8899',
                         help='Port for server')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='If set, show messages')
     return parser
 
 
 def main():
     parser = get_parser()
     args = parser.parse_args()
+    if args.verbose:
+        print(f'Serving {args.files_path} on port {args.port}')
     asyncio.run(run_server(Path(args.files_path), args.port))
 
 
