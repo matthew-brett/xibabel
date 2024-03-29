@@ -5,7 +5,12 @@ import os
 import sys
 import requests
 import socket
+import shutil
 import time
+
+from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
+                             JC_EG_ANAT_JSON, JH_EG_FUNC)
+
 
 import pytest
 from xprocess import ProcessStarter
@@ -13,6 +18,14 @@ from xprocess import ProcessStarter
 
 HERE = Path(__file__).parent
 TEST_APP_PORT = 8999
+
+TEST_FILES = (
+    JC_EG_FUNC,
+    JC_EG_FUNC_JSON,
+    JC_EG_ANAT,
+    JC_EG_ANAT_JSON,
+    JH_EG_FUNC,
+)
 
 
 class URLGetter:
@@ -75,6 +88,9 @@ def fserver(xprocess, tmp_path_factory, scope='session'):
 
     os.environ['APP_PORT'] = str(TEST_APP_PORT)
     xprocess.ensure("fserver", Starter, restart=True)
+
+    for tf in TEST_FILES:
+        shutil.copy2(tf, server_path)
 
     yield URLGetter(server_path)
 

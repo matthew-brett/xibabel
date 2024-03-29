@@ -255,11 +255,9 @@ def test_anat_loader():
 @skip_without_file(JC_EG_ANAT)
 def test_anat_loader_http(fserver):
     nb_img = nib.load(JC_EG_ANAT)
-    # Read from HTTP
+    # Read nibabel from HTTP
     # Original gz
     name_gz = JC_EG_ANAT.name
-    out_path_gz = fserver.server_path / name_gz
-    out_path_gz.write_bytes(JC_EG_ANAT.read_bytes())
     # Uncompressed, no gz
     name_no_gz = JC_EG_ANAT.with_suffix('').name
     out_path = fserver.server_path / name_no_gz
