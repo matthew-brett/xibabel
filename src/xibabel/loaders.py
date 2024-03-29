@@ -25,10 +25,6 @@ from .xutils import merge
 logger = logging.getLogger(__name__)
 
 
-# Add .gz to fsspec as extension signifyng gzip compression.
-fsspec.compression.compr['gz'] = fsspec.compression.compr['gzip']
-
-
 def max_available_div(div=10):
     """ Set default chunk as fraction of maximum aailable memory
     """
