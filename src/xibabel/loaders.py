@@ -280,11 +280,32 @@ def load(url_or_path, format=None):
 _VALID_FILE_EXTS = ('.nii', '.nii.gz')
 
 
-def drop_suffixes(path_str, suffixes=_VALID_FILE_EXTS):
+def drop_suffixes(in_path, suffixes):
+    """ Drop suffix in `suffixes from str or ``Path`` `in_path`
+
+    Drops first matching suffix in sequence `suffixes`.
+
+    Parameters
+    ----------
+    in_path : str or Path
+        Path from which to drop suffixes.
+    suffixes : sequence
+        Suffixes to strip from `in_path`
+
+    Returns
+    -------
+    out_path : str or Path
+        Return type matches that of `in_path`.
+    """
+    is_path = hasattr(in_path, 'is_file')
+    path_str = in_path.name if is_path else in_path
     for suffix in suffixes:
         if path_str.endswith(suffix):
-            return path_str[:-(len(suffix) + 1)]
-    return path_str
+            break
+    else:
+        return in_path
+    out_str = path_str[:-(len(suffix))]
+    return in_path.with_name(out_str) if is_path else out_str
 
 
 def _valid_or_raise(url_base, exts=_VALID_FILE_EXTS):
