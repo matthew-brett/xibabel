@@ -13,7 +13,7 @@ import nibabel as nib
 
 from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
-                             PROCESSORS, _json_attrs2attrs, drop_suffixes,
+                             PROCESSORS, _json_attrs2attrs, drop_suffix,
                              _attrs2json_attrs, wrap_header, _path2class)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
@@ -175,16 +175,18 @@ def test__path2class():
         assert _path2class(url) == exp_class
 
 
-def test_drop_suffixes():
+def test_drop_suffix():
     for inp, suffixes, exp_out in (
         ('foo/bar', ['.nii'], 'foo/bar'),
+        ('foo/bar', '.nii', 'foo/bar'),
         ('foo/bar.baz', ['.nii'], 'foo/bar.baz'),
         ('foo/bar.nii', ['.nii'], 'foo/bar'),
+        ('foo/bar.nii', '.nii', 'foo/bar'),
         ('foo/bar.nii.gz', ['.nii'], 'foo/bar.nii.gz'),
         ('foo/bar.nii.gz', ['.nii.gz', '.nii'], 'foo/bar'),
     ):
-        assert drop_suffixes(inp, suffixes) == exp_out
-        assert drop_suffixes(Path(inp), suffixes) == Path(exp_out)
+        assert drop_suffix(inp, suffixes) == exp_out
+        assert drop_suffix(Path(inp), suffixes) == Path(exp_out)
 
 
 def test_json_attrs():

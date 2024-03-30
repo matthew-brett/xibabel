@@ -273,23 +273,26 @@ def load(url_or_path, format=None):
 _VALID_FILE_EXTS = ('.nii', '.nii.gz')
 
 
-def drop_suffixes(in_path, suffixes):
-    """ Drop suffix in `suffixes from str or ``Path`` `in_path`
+def drop_suffix(in_path, suffix):
+    """ Drop suffix in `suffixes` from str or ``Path`` `in_path`
 
-    Drops first matching suffix in sequence `suffixes`.
+    `suffixes` can be ``str`` (suffix to drop) or sequence.  If sequence, drops
+    first matching suffix in sequence `suffixes`.
 
     Parameters
     ----------
     in_path : str or Path
         Path from which to drop suffixes.
-    suffixes : sequence
-        Suffixes to strip from `in_path`
+    suffix : str or sequence
+        If ``str``, suffix to drop.  If sequence, search for each suffix, and
+        drop first found suffix from `in_path`.
 
     Returns
     -------
     out_path : str or Path
         Return type matches that of `in_path`.
     """
+    suffixes = (suffix,) if isinstance(suffix, str) else suffix
     is_path = hasattr(in_path, 'is_file')
     path_str = in_path.name if is_path else in_path
     for suffix in suffixes:
@@ -301,7 +304,7 @@ def drop_suffixes(in_path, suffixes):
     return in_path.with_name(out_str) if is_path else out_str
 
 
-def _valid_or_raise(fs, url_base, exts=_VALID_FILE_EXTS):
+def _valid_or_raise(fs, url_base, exts):
     for ext in exts:
         target_url = url_base + ext
         if fs.exists(target_url):
@@ -323,7 +326,7 @@ def load_bids(url_or_path, *, require_json=True):
     Parameters
     ----------
     url_or_path : str or Path
-    require_json : {True, False}
+    require_json : {True, False}, optional, keyword-only
         If True, raise error if `url_or_path` is an image, and there is no
         matching JSON file.
 
@@ -339,11 +342,11 @@ def load_bids(url_or_path, *, require_json=True):
     """
     url_or_path = str(url_or_path)
     sidecar = {}
-    url_base = drop_suffixes(url_or_path, _VALID_FILE_EXTS + ('.json',))
+    url_base = drop_suffix(url_or_path, _VALID_FILE_EXTS + ('.json',))
     # If url_or_path has .json suffix, search for matching image file.
     if url_or_path.endswith('.json'):
         sidecar_file = fsspec.open(url_or_path)
-        fs_file = _valid_or_raise(sidecar_file.fs, url_base)
+        fs_file = _valid_or_raise(sidecar_file.fs, url_base, _VALID_FILE_EXTS)
     else:  # Image file extensions.  Search for JSON.
         fs_file = fsspec.open(url_or_path, compression='infer')
         fs = fs_file.fs
@@ -413,7 +416,7 @@ def _img_meta2ximg(img, meta, url_or_path):
 
 
 def _url2name(url_or_path):
-    name = drop_suffixes(url_or_path, _comp_exts())
+    name = drop_suffix(url_or_path, _comp_exts())
     return Path(name).stem
 
 
