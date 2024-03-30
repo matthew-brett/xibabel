@@ -25,6 +25,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+      - name: Install Datalad on Unices
+        uses: datalad/datalad-action/install@main
       - name: Install
         run: |
           pip install -e '.[docs,developer]'
