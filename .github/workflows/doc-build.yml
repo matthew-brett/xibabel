@@ -39,3 +39,7 @@ jobs:
           cd doc
           make clean
           make doctest
+      - name: Check experiment notebooks
+        run: |
+          pip install jupytext
+          jupytext --execute experiments/*.Rmd
