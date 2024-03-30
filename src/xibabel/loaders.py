@@ -3,7 +3,6 @@
 
 from pathlib import Path
 import json
-from dataclasses import dataclass
 import logging
 import importlib
 
@@ -84,12 +83,6 @@ class FDataObj:
                 return sizes
             sizes[axis_no] = 1
         return sizes
-
-
-@dataclass
-class InvalidBIDSImage:
-    data: None
-    error: str
 
 
 dim_recoder = {
@@ -308,41 +301,65 @@ def drop_suffixes(in_path, suffixes):
     return in_path.with_name(out_str) if is_path else out_str
 
 
-def _valid_or_raise(url_base, exts=_VALID_FILE_EXTS):
+def _valid_or_raise(fs, url_base, exts=_VALID_FILE_EXTS):
     for ext in exts:
-        fs_file = fsspec.open(url_base + ext, compression='infer')
-        if fs_file.exists():
-            return fs_file
+        target_url = url_base + ext
+        if fs.exists(target_url):
+            return fsspec.open(target_url, compression='infer')
     msg_suffix = ('one of' if len(exts) > 1 else '') + ', '.join(exts)
     raise XibFileError(
         f"No valid file matching '{url_base}' + {msg_suffix}")
 
 
-def load_bids(url_or_path):
+def load_bids(url_or_path, *, require_json=True):
+    """ Load image from BIDS-format data at `url_or_path`
+
+    `url_or_path` may point directly to ``.json`` file, or to Nibabel format
+    file, for which we expect a ``.json`` file to be present.
+
+    In the second case, if `require_json` is True, and we cannot find a
+    matching `.json` file, raise error, otherwise return image as best read.
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    require_json : {True, False}
+        If True, raise error if `url_or_path` is an image, and there is no
+        matching JSON file.
+
+    Returns
+    -------
+    bids_ximg : Xibabel image
+
+    Raises
+    ------
+    XibFileError
+        If `require_json` is True, `url_or_path` does not name a ``.json`` file
+        and there is no ``.json`` file corresponding to `url_or_path`.
+    """
     url_or_path = str(url_or_path)
+    sidecar = {}
+    url_base = drop_suffixes(url_or_path, _VALID_FILE_EXTS + ('.json',))
     # If url_or_path has .json suffix, search for matching image file.
     if url_or_path.endswith('.json'):
         sidecar_file = fsspec.open(url_or_path)
-        url_base = drop_suffixes(url_or_path, ('.json'))
-        fs_file = _valid_or_raise(url_base)
-    else:  # Image file extensions.  Search for JSON
+        fs_file = _valid_or_raise(sidecar_file.fs, url_base)
+    else:  # Image file extensions.  Search for JSON.
         fs_file = fsspec.open(url_or_path, compression='infer')
-        url_base = drop_suffixes(url_or_path, _VALID_FILE_EXTS)
-        sidecar_file = fsspec.open(url_base + '.json')
+        fs = fs_file.fs
+        if fs.exists(url_base + '.json'):
+            with fs.open(url_base + '.json') as f:
+                sidecar = json.load(f)
+        elif require_json:
+            raise XibFileError(
+                f'BIDS loading {url_or_path} but no corresponding '
+                f'{url_base + ".json"} file, and `require_json` is True')
     img, meta = _nibabel2img_meta(fs_file)
-    if not sidecar_file.exists():
-        logger.warn("Invalid BIDS image, file missing %s", sidecar_file)
-        return InvalidBIDSImage(data=img, error="sidecar file missing", )
-    with sidecar_file as f:
-        sidecar = json.load(f)
     return _img_meta2ximg(img, merge(meta, sidecar), url_or_path)
 
 
-def load_nibabel(url_or_path, force_bids=False):
-    url_or_path = str(url_or_path)
-    img, meta = _nibabel2img_meta(fsspec.open(url_or_path,
-                                              compression='infer'))
-    return _img_meta2ximg(img, meta, url_or_path)
+def load_nibabel(url_or_path):
+    return load_bids(url_or_path, require_json=False)
 
 
 def _comp_exts():

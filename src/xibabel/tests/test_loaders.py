@@ -12,12 +12,13 @@ import numpy as np
 import nibabel as nib
 
 from xibabel import loaders
-from xibabel.loaders import (FDataObj, load_nibabel, load, save,
+from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              PROCESSORS, _json_attrs2attrs, drop_suffixes,
                              _attrs2json_attrs, wrap_header, _path2class)
 from xibabel.xutils import merge
-from xibabel.testing import (JC_EG_FUNC, JC_EG_ANAT, JH_EG_FUNC,
-                             skip_without_file, fetcher)
+from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
+                             JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
+                             fetcher)
 
 import pytest
 
@@ -209,13 +210,8 @@ def test_json_attrs():
 def test_nib_loader_jc():
     img = nib.load(JC_EG_FUNC)
     ximg = load_nibabel(JC_EG_FUNC)
-    assert ximg.meta == {'xib-FrequencyEncodingDirection': 'i',
-                         'PhaseEncodingDirection': 'j',
-                         'SliceEncodingDirection': 'k',
-                         'RepetitionTime': 2.0,
-                         'xib-affines':
-                         {'scanner': img.affine.tolist()}
-                        }
+    assert ximg.meta == JC_EG_FUNC_META
+    assert np.all(np.array(ximg) == img.get_fdata())
 
 
 @skip_without_file(JH_EG_FUNC)
@@ -228,28 +224,41 @@ def test_nib_loader_jh():
                         }
 
 
+if fetcher.have_file(JC_EG_FUNC):
+    img = nib.load(JC_EG_FUNC)
+    JC_EG_FUNC_META = json.loads(JC_EG_FUNC_JSON.read_text())
+    JC_EG_FUNC_META.update(
+        {'xib-FrequencyEncodingDirection': 'i',
+         'PhaseEncodingDirection': 'j',
+         'SliceEncodingDirection': 'k',
+         'RepetitionTime': 2.0,
+         'xib-affines':
+         {'scanner': img.affine.tolist()}
+        })
+
 
 if fetcher.have_file(JC_EG_ANAT):
     img = nib.load(JC_EG_ANAT)
-    ximg = load_nibabel(JC_EG_ANAT)
-    JC_EG_ANAT_META = {'xib-FrequencyEncodingDirection': 'j',
-                       'PhaseEncodingDirection': 'i',
-                       'SliceEncodingDirection': 'k',
-                       'xib-affines':
-                       {'scanner': img.affine.tolist()}
-                      }
+    JC_EG_ANAT_META = json.loads(JC_EG_ANAT_JSON.read_text())
+    JC_EG_ANAT_META.update(
+        {'xib-FrequencyEncodingDirection': 'j',
+         'PhaseEncodingDirection': 'i',
+         'SliceEncodingDirection': 'k',
+         'xib-affines':
+         {'scanner': img.affine.tolist()}
+        })
 
 
 @skip_without_file(JC_EG_ANAT)
 def test_anat_loader():
     img = nib.load(JC_EG_ANAT)
-    meta = wrap_header(img.header).to_meta()
     assert img.shape == (176, 256, 256)
-    assert meta == JC_EG_ANAT_META
-    ximg = load(JC_EG_ANAT)
-    assert ximg.shape == (176, 256, 256)
-    assert ximg.name == JC_EG_ANAT.name.split('.')[0]
-    assert ximg.meta == meta
+    for loader in (load, load_bids, load_nibabel):
+        ximg = loader(JC_EG_ANAT)
+        assert ximg.shape == (176, 256, 256)
+        assert ximg.name == JC_EG_ANAT.name.split('.')[0]
+        assert ximg.meta == JC_EG_ANAT_META
+        assert np.all(np.array(ximg) == img.get_fdata())
 
 
 @skip_without_file(JC_EG_ANAT)
