@@ -161,8 +161,8 @@ def wrap_header(header):
     return NiftiWrapper(header)
 
 
-def load_zarr(url_or_path):
-    return xr.open_dataarray(url_or_path, engine='zarr')
+def load_zarr(file_path):
+    return xr.open_dataarray(file_path, engine='zarr', chunks='auto')
 
 
 class XibError(Exception):
