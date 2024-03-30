@@ -273,8 +273,9 @@ def test_anat_loader():
     img = nib.load(JC_EG_ANAT)
     for loader, in_path in product(
         (load, load_bids, load_nibabel),
-        (JC_EG_ANAT, str(JC_EG_ANAT))):
-        ximg = loader(JC_EG_ANAT)
+        (JC_EG_ANAT, str(JC_EG_ANAT),
+         JC_EG_ANAT_JSON, str(JC_EG_ANAT_JSON))):
+        ximg = loader(in_path)
         assert ximg.shape == (176, 256, 256)
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
         assert ximg.meta == JC_EG_ANAT_META
@@ -363,6 +364,8 @@ def test_round_trip_netcdf_url(fserver):
 @skip_without_file(JC_EG_ANAT)
 def test_matching_img_error(tmp_path):
     out_json = tmp_path / JC_EG_ANAT_JSON.name
+    with pytest.raises(XibFileError, match='does not appear to exist'):
+        load(out_json)
     shutil.copy2(JC_EG_ANAT_JSON, tmp_path)
     with pytest.raises(XibFileError, match='No valid file matching'):
         load(out_json)
@@ -371,3 +374,6 @@ def test_matching_img_error(tmp_path):
     back = load(out_img)
     assert back.shape == (176, 256, 256)
     assert back.attrs == {'meta': JC_EG_ANAT_META}
+    os.unlink(out_img)
+    with pytest.raises(XibFileError, match='does not appear to exist'):
+        load(out_img)

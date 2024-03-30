@@ -19,8 +19,6 @@ import fsspec
 import xarray as xr
 import dask.array as da
 
-from .xutils import merge
-
 
 logger = logging.getLogger(__name__)
 
@@ -375,27 +373,36 @@ def load_bids(url_or_path, *, require_json=True):
         If `require_json` is True, `url_or_path` does not name a ``.json`` file
         and there is no ``.json`` file corresponding to `url_or_path`.
     """
-    sidecar = {}
+    sidecar_file = None
     # If url_or_path has .json suffix, search for matching image file.
     if str(url_or_path).endswith('.json'):
         sidecar_file = fsspec.open(url_or_path)
-        fs_file = _valid_or_raise(sidecar_file.fs,
-                                  drop_suffix(url_or_path, '.json'),
-                                  _VALID_FILE_EXTS)
+        fs = sidecar_file.fs
+        if not fs.exists(url_or_path):
+            raise XibFileError(
+                f'{url_or_path} does not appear to exist')
+        img_file = _valid_or_raise(fs,
+                                   drop_suffix(url_or_path, '.json'),
+                                   _VALID_FILE_EXTS)
     else:  # Image file extensions.  Search for JSON.
-        fs_file = fsspec.open(url_or_path, compression='infer')
-        fs = fs_file.fs
+        img_file = fsspec.open(url_or_path, compression='infer')
+        fs = img_file.fs
+        if not fs.exists(url_or_path):
+            raise XibFileError(
+                f'{url_or_path} does not appear to exist')
         url_uncomp = drop_suffix(url_or_path, _comp_exts())
         url_json = replace_suffix(url_uncomp, (), '.json')
         if fs.exists(url_json):
-            with fs.open(url_json) as f:
-                sidecar = json.load(f)
+            sidecar_file = fs.open(url_json)
         elif require_json:
             raise XibFileError(
                 f'BIDS loading {url_or_path} but no corresponding '
                 f'{url_json} file, and `require_json` is True')
-    img, meta = _nibabel2img_meta(fs_file)
-    return _img_meta2ximg(img, merge(meta, sidecar), url_or_path)
+    img, meta = _nibabel2img_meta(img_file)
+    if sidecar_file:
+        with sidecar_file as fobj:
+            meta.update(json.load(fobj))
+    return _img_meta2ximg(img, meta, url_or_path)
 
 
 def load_nibabel(url_or_path):
@@ -423,15 +430,15 @@ class FSFileHolder(FileHolder):
         self.fileobj.close()
 
 
-def _nibabel2img_meta(fs_file):
-    # Identify relevant files from fs_file
+def _nibabel2img_meta(img_file):
+    # Identify relevant files from img_file
     # Make file_map with opened files.
-    if 'local' in fs_file.fs.protocol:
-        img = nib.load(fs_file.path)
+    if 'local' in img_file.fs.protocol:
+        img = nib.load(img_file.path)
     else:  # Not local - use stream interface.
-        img_klass = _path2class(fs_file.full_name)
+        img_klass = _path2class(img_file.full_name)
         # We are passing out opened fsspec files.
-        fh = FileHolder(fs_file.full_name, fs_file.open())
+        fh = FileHolder(img_file.full_name, img_file.open())
         img = img_klass.from_file_map({'image': fh})
     return img, wrap_header(img.header).to_meta()
 
