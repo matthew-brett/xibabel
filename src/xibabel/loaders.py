@@ -667,3 +667,18 @@ def to_nifti(ximg):
     hdr = _to_ni_header(ximg)
     # Adjust affines.
     return nib.Nifti1Image(ximg, None, hdr)
+
+
+@xr.register_dataarray_accessor("xi")
+class XiAccessor:
+
+    def __init__(self, xarray_obj):
+        self._obj = xarray_obj
+
+    @property
+    def affines(self):
+        aff_d = self._obj.meta.get('xib-affines', {})
+        return {space: np.array(aff) for space, aff in aff_d.items()}
+
+    def to_bids(self):
+        pass
