@@ -21,13 +21,12 @@ jobs:
         run: sudo apt update
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
       - name: Install
         run: |
-          pip install pytest-cov
           pip install -e '.[docs,developer]'
       - name: Show environment
         run: env

@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
@@ -33,7 +33,7 @@ jobs:
           pip install pytest-cov
           pip install -e '.[test,developer,optional]'
       - name: Cache Dataset
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.XIB_DATA_PATH }}
           key: ${{ runner.os }}-ds105
@@ -47,6 +47,6 @@ jobs:
             --cov=xibabel  --cov-report xml  --cov-config=.coveragerc \
             src/xibabel
       - name: Upload to codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
