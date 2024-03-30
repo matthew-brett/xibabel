@@ -246,26 +246,28 @@ def test_nib_loader_jh():
 if fetcher.have_file(JC_EG_FUNC):
     img = nib.load(JC_EG_FUNC)
     JC_EG_FUNC_META = json.loads(JC_EG_FUNC_JSON.read_text())
-    JC_EG_FUNC_META.update(
-        {'xib-FrequencyEncodingDirection': 'i',
+    JC_EG_FUNC_META_RAW = {
+        'xib-FrequencyEncodingDirection': 'i',
          'PhaseEncodingDirection': 'j',
          'SliceEncodingDirection': 'k',
          'RepetitionTime': 2.0,
          'xib-affines':
          {'scanner': img.affine.tolist()}
-        })
+    }
+    JC_EG_FUNC_META.update(JC_EG_FUNC_META_RAW)
 
 
 if fetcher.have_file(JC_EG_ANAT):
     img = nib.load(JC_EG_ANAT)
     JC_EG_ANAT_META = json.loads(JC_EG_ANAT_JSON.read_text())
-    JC_EG_ANAT_META.update(
-        {'xib-FrequencyEncodingDirection': 'j',
+    JC_EG_ANAT_META_RAW = {
+        'xib-FrequencyEncodingDirection': 'j',
          'PhaseEncodingDirection': 'i',
          'SliceEncodingDirection': 'k',
          'xib-affines':
          {'scanner': img.affine.tolist()}
-        })
+    }
+    JC_EG_ANAT_META.update(JC_EG_ANAT_META_RAW)
 
 
 @skip_without_file(JC_EG_ANAT)
@@ -377,3 +379,11 @@ def test_matching_img_error(tmp_path):
     os.unlink(out_img)
     with pytest.raises(XibFileError, match='does not appear to exist'):
         load(out_img)
+    shutil.copy2(JC_EG_ANAT, tmp_path)
+    os.unlink(out_json)
+    back = load(out_img)
+    assert back.attrs == {'meta': JC_EG_ANAT_META_RAW}
+    back = load_bids(out_img, require_json=False)
+    assert back.attrs == {'meta': JC_EG_ANAT_META_RAW}
+    with pytest.raises(XibFileError, match='`require_json` is True'):
+        load_bids(out_img, require_json=True)
