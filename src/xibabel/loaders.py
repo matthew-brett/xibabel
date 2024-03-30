@@ -225,51 +225,14 @@ def load_netcdf(url_or_path):
     return img
 
 
-VALID_URL_SCHEMES = {
-    # List from https://docs.python.org/3/library/urllib.parse.html
-    # plus others supported by fsspec (see below).
-    'file',
-    'ftp',
-    'gopher',
-    'hdl',
-    'http',
-    'https',
-    'imap',
-    'mailto',
-    'mms',
-    'news',
-    'nntp',
-    'prospero',
-    'rsync',
-    'rtsp',
-    'rtsps',
-    'rtspu',
-    'sftp',
-    'shttp',
-    'sip',
-    'sips',
-    'snews',
-    'svn',
-    'svn+ssh',
-    'telnet',
-    'wais',
-    'ws',
-    'wss',  # End of Python doc list.
-    # Following all supported via fsspec
-    'gs',  # Google Storage (fsspec)
-    'adl',  # Azure Data Lake Gen 1
-    'abfs',  # Azure Blob storage.
-    'az',  # Azure Data Lake Gen 2
-}
-
-
 def load(url_or_path, format=None):
     if format is None:
         format = PROCESSORS.guess_format(url_or_path)
     return PROCESSORS.get_loader(format)(url_or_path)
 
 
-_VALID_FILE_EXTS = ('.nii', '.nii.gz')
+# Extensions we will search for valid images paired with JSON files.
+_JSON_PAIRED_EXTS = ('.nii.gz', '.nii')
 
 
 def drop_suffix(in_path, suffix):
@@ -383,7 +346,7 @@ def load_bids(url_or_path, *, require_json=True):
                 f'{url_or_path} does not appear to exist')
         img_file = _valid_or_raise(fs,
                                    drop_suffix(url_or_path, '.json'),
-                                   _VALID_FILE_EXTS)
+                                   _JSON_PAIRED_EXTS)
     else:  # Image file extensions.  Search for JSON.
         img_file = fsspec.open(url_or_path, compression='infer')
         fs = img_file.fs
