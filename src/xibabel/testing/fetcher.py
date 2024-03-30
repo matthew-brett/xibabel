@@ -16,7 +16,6 @@ from pathlib import Path
 from subprocess import check_call
 from collections import abc
 
-import pytest
 import yaml
 
 
@@ -127,6 +126,7 @@ class Fetcher:
     def skip_without_file(self, path):
         """ Pytest decorator to skip test if file not available
         """
+        import pytest
         return pytest.mark.skipif(
             not self.have_file(path),
             reason=f'This test requires file {path}')
