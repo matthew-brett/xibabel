@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import logging
 import importlib
+import os.path as op
 
 import numpy as np
 import psutil
@@ -276,13 +277,13 @@ _VALID_FILE_EXTS = ('.nii', '.nii.gz')
 def drop_suffix(in_path, suffix):
     """ Drop suffix in `suffixes` from str or ``Path`` `in_path`
 
-    `suffixes` can be ``str`` (suffix to drop) or sequence.  If sequence, drops
-    first matching suffix in sequence `suffixes`.
+    `suffix` can be ``str`` (suffix to drop) or sequence.  If sequence, drops
+    first matching suffix in sequence `suffix`.
 
     Parameters
     ----------
     in_path : str or Path
-        Path from which to drop suffixes.
+        Path from which to drop suffix.
     suffix : str or sequence
         If ``str``, suffix to drop.  If sequence, search for each suffix, and
         drop first found suffix from `in_path`.
@@ -292,16 +293,49 @@ def drop_suffix(in_path, suffix):
     out_path : str or Path
         Return type matches that of `in_path`.
     """
+    if not hasattr(in_path, 'is_file'):
+        return _drop_suffix_str(in_path, suffix)
+    return in_path.with_name(_drop_suffix_str(in_path.name, suffix))
+
+
+def _drop_suffix_str(path_str, suffix):
     suffixes = (suffix,) if isinstance(suffix, str) else suffix
-    is_path = hasattr(in_path, 'is_file')
-    path_str = in_path.name if is_path else in_path
     for suffix in suffixes:
         if path_str.endswith(suffix):
-            break
-    else:
-        return in_path
-    out_str = path_str[:-(len(suffix))]
-    return in_path.with_name(out_str) if is_path else out_str
+            return path_str[:-(len(suffix))]
+    return path_str
+
+
+def replace_suffix(in_path, old_suffix, new_suffix):
+    """ Replace `in_path` suffix with `new_suffix`, allowing for `old_suffix`
+
+    Always replace suffix of `in_path`, if present, but allowing for any
+    special (multi-dot) suffixes in `old_sequence`.
+
+    `old_suffix` can be ``str`` (suffix to drop) or sequence.  If sequence,
+    drops first matching suffix in sequence `suffixes` before appending
+    `new_suffix`.
+
+    Parameters
+    ----------
+    in_path : str or Path
+        Path from which to replace suffix.
+    old_suffix : str or sequence
+        If ``str``, suffix to drop before replacing.  If sequence, search for
+        each suffix, and drop first found suffix from `in_path`.
+    new_suffix : str
+        Suffix to append.
+
+    Returns
+    -------
+    out_path : str or Path
+        Return type matches that of `in_path`.
+    """
+    is_path = hasattr(in_path, 'is_file')
+    path_str = in_path.name if is_path else in_path
+    dropped = _drop_suffix_str(path_str, old_suffix)
+    replaced = op.splitext(dropped)[0] + new_suffix
+    return in_path.with_name(replaced) if is_path else replaced
 
 
 def _valid_or_raise(fs, url_base, exts):
@@ -340,23 +374,25 @@ def load_bids(url_or_path, *, require_json=True):
         If `require_json` is True, `url_or_path` does not name a ``.json`` file
         and there is no ``.json`` file corresponding to `url_or_path`.
     """
-    url_or_path = str(url_or_path)
     sidecar = {}
-    url_base = drop_suffix(url_or_path, _VALID_FILE_EXTS + ('.json',))
     # If url_or_path has .json suffix, search for matching image file.
-    if url_or_path.endswith('.json'):
+    if str(url_or_path).endswith('.json'):
         sidecar_file = fsspec.open(url_or_path)
-        fs_file = _valid_or_raise(sidecar_file.fs, url_base, _VALID_FILE_EXTS)
+        fs_file = _valid_or_raise(sidecar_file.fs,
+                                  drop_suffix(url_or_path, '.json'),
+                                  _VALID_FILE_EXTS)
     else:  # Image file extensions.  Search for JSON.
         fs_file = fsspec.open(url_or_path, compression='infer')
         fs = fs_file.fs
-        if fs.exists(url_base + '.json'):
-            with fs.open(url_base + '.json') as f:
+        url_uncomp = drop_suffix(url_or_path, _comp_exts())
+        url_json = replace_suffix(url_uncomp, (), '.json')
+        if fs.exists(url_json):
+            with fs.open(url_json) as f:
                 sidecar = json.load(f)
         elif require_json:
             raise XibFileError(
                 f'BIDS loading {url_or_path} but no corresponding '
-                f'{url_base + ".json"} file, and `require_json` is True')
+                f'{url_json} file, and `require_json` is True')
     img, meta = _nibabel2img_meta(fs_file)
     return _img_meta2ximg(img, merge(meta, sidecar), url_or_path)
 

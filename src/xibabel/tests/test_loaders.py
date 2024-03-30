@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 from importlib.util import find_spec
 import gzip
+from itertools import product
 import json
 
 import numpy as np
@@ -14,7 +15,8 @@ import nibabel as nib
 from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              PROCESSORS, _json_attrs2attrs, drop_suffix,
-                             _attrs2json_attrs, wrap_header, _path2class)
+                             replace_suffix, _attrs2json_attrs, wrap_header,
+                             _path2class)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
@@ -189,6 +191,20 @@ def test_drop_suffix():
         assert drop_suffix(Path(inp), suffixes) == Path(exp_out)
 
 
+def test_replace_suffix():
+    for inp, suffixes, new_suffix, exp_out in (
+        ('foo/bar', ['.nii'], '.json', 'foo/bar.json'),
+        ('foo/bar', '.nii', '.json', 'foo/bar.json'),
+        ('foo/bar.baz', ['.nii'], '.boo', 'foo/bar.boo'),
+        ('foo/bar.nii', ['.nii'], '.boo', 'foo/bar.boo'),
+        ('foo/bar.nii', '.nii', '.boo', 'foo/bar.boo'),
+        ('foo/bar.nii.gz', ['.nii'], '.boo', 'foo/bar.nii.boo'),
+        ('foo/bar.nii.gz', ['.nii.gz', '.nii'], '.boo', 'foo/bar.boo'),
+    ):
+        assert replace_suffix(inp, suffixes, new_suffix) == exp_out
+        assert replace_suffix(Path(inp), suffixes, new_suffix) == Path(exp_out)
+
+
 def test_json_attrs():
     # Test utilities to load / save JSON attrs
     d = {'foo': 1, 'bar': [2, 3]}
@@ -254,8 +270,9 @@ if fetcher.have_file(JC_EG_ANAT):
 @skip_without_file(JC_EG_ANAT)
 def test_anat_loader():
     img = nib.load(JC_EG_ANAT)
-    assert img.shape == (176, 256, 256)
-    for loader in (load, load_bids, load_nibabel):
+    for loader, in_path in product(
+        (load, load_bids, load_nibabel),
+        (JC_EG_ANAT, str(JC_EG_ANAT))):
         ximg = loader(JC_EG_ANAT)
         assert ximg.shape == (176, 256, 256)
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
