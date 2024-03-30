@@ -5,7 +5,7 @@ import pathlib
 
 from nipy.algorithms.diagnostics.timediff import time_slice_diffs
 
-from .loaders import load
+from .loaders import load, save  # noqa:F401
 
 
 __version__ = "0.0.1a0"

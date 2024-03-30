@@ -43,7 +43,14 @@ docs = [
 test = [
     'pyyaml',
     'pytest-doctestplus',
+    'pytest-xprocess',
+    'requests',
+    'aiohttp',
 ]
 optional = [
-    'netcdf4'
+    'h5netcdf',
+    'matplotlib',
+    'fsspec',
+    'requests',
+    'aiohttp'
 ]

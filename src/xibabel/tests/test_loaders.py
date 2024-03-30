@@ -4,17 +4,24 @@
 from pathlib import Path
 import os
 from importlib.util import find_spec
+import gzip
+from itertools import product
+import json
+import shutil
 
 import numpy as np
 
 import nibabel as nib
 
 from xibabel import loaders
-from xibabel.loaders import (FDataObj, load_nibabel, load, save,
-                             _guess_format)
+from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
+                             PROCESSORS, _json_attrs2attrs, drop_suffix,
+                             replace_suffix, _attrs2json_attrs, wrap_header,
+                             _path2class, XibFileError)
 from xibabel.xutils import merge
-from xibabel.testing import (JC_EG_FUNC, JC_EG_ANAT, JH_EG_FUNC,
-                             skip_without_file, fetcher)
+from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
+                             JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
+                             fetcher)
 
 import pytest
 
@@ -84,7 +91,8 @@ def out_back(img, out_path):
     if out_path.is_file():
         os.unlink(out_path)
     nib.save(img, out_path)
-    return load_nibabel(out_path)
+    img = nib.load(out_path)
+    return img, wrap_header(img.header).to_meta()
 
 
 def test_nibabel_tr(tmp_path):
@@ -146,53 +154,157 @@ def test_nibabel_slice_timing(tmp_path):
 
 
 def test_guess_format():
-    root = Path('foo') / 'bar' / 'baz'
-    assert _guess_format(root) is None
-    assert _guess_format(root.with_suffix('.json')) == 'bids'
-    assert _guess_format(root.with_suffix('.ximg')) == 'zarr'
-    assert _guess_format(root.with_suffix('.nc')) == 'netcdf'
+    root = Path('foo') / 'bar' / 'baz.suff'
+    for v, exp in ((root, None),
+                   (root.with_suffix('.nii'), None),
+                   (root.with_suffix('.json'), 'bids'),
+                   (root.with_suffix('.ximg'), 'zarr'),
+                   (root.with_suffix('.nc'), 'netcdf'),
+                   (root.with_suffix('.foo'), None)):
+
+        assert PROCESSORS.guess_format(v) == exp
+        assert PROCESSORS.guess_format(str(v)) == exp
+
+
+def test__path2class():
+    for url, exp_class in (
+        ('/foo/bar/sub-07_T1w.nii.gz', nib.Nifti1Image),
+        ('http://localhost:8999/sub-07_T1w.nii.gz', nib.Nifti1Image),
+        ('/foo/bar/sub-07_T1w.nii', nib.Nifti1Image),
+        ('http://localhost:8999/sub-07_T1w.nii', nib.Nifti1Image),
+        ('/foo/bar/sub-07_T1w.mnc', nib.Minc1Image),
+        ('http://localhost:8999/sub-07_T1w.mnc', nib.Minc1Image),
+    ):
+        assert _path2class(url) == exp_class
+
+
+def test_drop_suffix():
+    for inp, suffixes, exp_out in (
+        ('foo/bar', ['.nii'], 'foo/bar'),
+        ('foo/bar', '.nii', 'foo/bar'),
+        ('foo/bar.baz', ['.nii'], 'foo/bar.baz'),
+        ('foo/bar.nii', ['.nii'], 'foo/bar'),
+        ('foo/bar.nii', '.nii', 'foo/bar'),
+        ('foo/bar.nii.gz', ['.nii'], 'foo/bar.nii.gz'),
+        ('foo/bar.nii.gz', ['.nii.gz', '.nii'], 'foo/bar'),
+    ):
+        assert drop_suffix(inp, suffixes) == exp_out
+        assert drop_suffix(Path(inp), suffixes) == Path(exp_out)
+
+
+def test_replace_suffix():
+    for inp, suffixes, new_suffix, exp_out in (
+        ('foo/bar', ['.nii'], '.json', 'foo/bar.json'),
+        ('foo/bar', '.nii', '.json', 'foo/bar.json'),
+        ('foo/bar.baz', ['.nii'], '.boo', 'foo/bar.boo'),
+        ('foo/bar.nii', ['.nii'], '.boo', 'foo/bar.boo'),
+        ('foo/bar.nii', '.nii', '.boo', 'foo/bar.boo'),
+        ('foo/bar.nii.gz', ['.nii'], '.boo', 'foo/bar.nii.boo'),
+        ('foo/bar.nii.gz', ['.nii.gz', '.nii'], '.boo', 'foo/bar.boo'),
+    ):
+        assert replace_suffix(inp, suffixes, new_suffix) == exp_out
+        assert replace_suffix(Path(inp), suffixes, new_suffix) == Path(exp_out)
+
+
+def test_json_attrs():
+    # Test utilities to load / save JSON attrs
+    d = {'foo': 1, 'bar': [2, 3]}
+    assert _attrs2json_attrs(d) == d
+    assert _json_attrs2attrs(d) == d
+    dd = {'foo': 1, 'bar': {'baz': 4}}
+    ddj = {'foo': 1, 'bar': ['__json__', '{"baz": 4}']}
+    assert _attrs2json_attrs(dd) == ddj
+    assert _json_attrs2attrs(ddj) == dd
+    arr = rng.integers(0, 10, size=(3, 4)).tolist()
+    arr_j = json.dumps(arr)
+    dd = {'foo': 1, 'bar': {'baz': [2, 3]}, 'baf': arr}
+    ddj = {'foo': 1,
+           'bar': ['__json__', '{"baz": [2, 3]}'],
+           'baf': ['__json__', arr_j]}
+    assert _attrs2json_attrs(dd) == ddj
+    assert _json_attrs2attrs(ddj) == dd
 
 
 @skip_without_file(JC_EG_FUNC)
 def test_nib_loader_jc():
-    img, meta = load_nibabel(JC_EG_FUNC)
-    assert meta == {'xib-FrequencyEncodingDirection': 'i',
-                    'PhaseEncodingDirection': 'j',
-                    'SliceEncodingDirection': 'k',
-                    'RepetitionTime': 2.0,
-                    'xib-affines':
-                    {'scanner': img.affine.tolist()}
-                   }
+    img = nib.load(JC_EG_FUNC)
+    ximg = load_nibabel(JC_EG_FUNC)
+    assert ximg.meta == JC_EG_FUNC_META
+    assert np.all(np.array(ximg) == img.get_fdata())
 
 
 @skip_without_file(JH_EG_FUNC)
 def test_nib_loader_jh():
-    img, meta = load_nibabel(JH_EG_FUNC)
-    assert meta == {'RepetitionTime': 2.5,
-                    'xib-affines':
-                    {'scanner': img.affine.tolist()}
-                   }
+    img = nib.load(JH_EG_FUNC)
+    ximg = load_nibabel(JH_EG_FUNC)
+    assert ximg.meta == {'RepetitionTime': 2.5,
+                         'xib-affines':
+                         {'scanner': img.affine.tolist()}
+                        }
 
+
+if fetcher.have_file(JC_EG_FUNC):
+    img = nib.load(JC_EG_FUNC)
+    JC_EG_FUNC_META = json.loads(JC_EG_FUNC_JSON.read_text())
+    JC_EG_FUNC_META_RAW = {
+        'xib-FrequencyEncodingDirection': 'i',
+         'PhaseEncodingDirection': 'j',
+         'SliceEncodingDirection': 'k',
+         'RepetitionTime': 2.0,
+         'xib-affines':
+         {'scanner': img.affine.tolist()}
+    }
+    JC_EG_FUNC_META.update(JC_EG_FUNC_META_RAW)
 
 
 if fetcher.have_file(JC_EG_ANAT):
-    img, meta = load_nibabel(JC_EG_ANAT)
-    JC_EG_ANAT_META = {'xib-FrequencyEncodingDirection': 'j',
-                        'PhaseEncodingDirection': 'i',
-                        'SliceEncodingDirection': 'k',
-                        'xib-affines':
-                       {'scanner': img.affine.tolist()}
-                      }
+    img = nib.load(JC_EG_ANAT)
+    JC_EG_ANAT_META = json.loads(JC_EG_ANAT_JSON.read_text())
+    JC_EG_ANAT_META_RAW = {
+        'xib-FrequencyEncodingDirection': 'j',
+         'PhaseEncodingDirection': 'i',
+         'SliceEncodingDirection': 'k',
+         'xib-affines':
+         {'scanner': img.affine.tolist()}
+    }
+    JC_EG_ANAT_META.update(JC_EG_ANAT_META_RAW)
 
 
 @skip_without_file(JC_EG_ANAT)
 def test_anat_loader():
-    img, meta = load_nibabel(JC_EG_ANAT)
-    assert img.shape == (176, 256, 256)
-    assert meta == JC_EG_ANAT_META
-    ximg = load(JC_EG_ANAT)
-    assert ximg.shape == (176, 256, 256)
-    assert ximg.name == JC_EG_ANAT.name.split('.')[0]
+    img = nib.load(JC_EG_ANAT)
+    for loader, in_path in product(
+        (load, load_bids, load_nibabel),
+        (JC_EG_ANAT, str(JC_EG_ANAT),
+         JC_EG_ANAT_JSON, str(JC_EG_ANAT_JSON))):
+        ximg = loader(in_path)
+        assert ximg.shape == (176, 256, 256)
+        assert ximg.name == JC_EG_ANAT.name.split('.')[0]
+        assert ximg.meta == JC_EG_ANAT_META
+        assert np.all(np.array(ximg) == img.get_fdata())
+
+
+@skip_without_file(JC_EG_ANAT)
+def test_anat_loader_http(fserver):
+    nb_img = nib.load(JC_EG_ANAT)
+    # Read nibabel from HTTP
+    # Original gz
+    name_gz = JC_EG_ANAT.name
+    # Uncompressed, no gz
+    name_no_gz = JC_EG_ANAT.with_suffix('').name
+    out_path = fserver.server_path / name_no_gz
+    with gzip.open(JC_EG_ANAT, 'rb') as f:
+        out_path.write_bytes(f.read())
+    for name in (name_gz, name_no_gz):
+        out_url = fserver.make_url(name)
+        ximg = load(out_url)
+        # Check we can read the data
+        ximg.compute()
+        # Check parameters
+        assert ximg.shape == (176, 256, 256)
+        assert ximg.name == JC_EG_ANAT.name.split('.')[0]
+        assert ximg.meta == JC_EG_ANAT_META
+        assert np.all(np.array(ximg) == nb_img.get_fdata())
 
 
 @skip_without_file(JC_EG_ANAT)
@@ -208,10 +320,13 @@ def test_round_trip(tmp_path):
     save(ximg, out_path)
     back = load(out_path)
     assert back.attrs == {'meta': JC_EG_ANAT_META}
+    # With url
+    back = load(f'file:///{out_path}')
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
 
 
-@pytest.mark.skipif(not find_spec('netCDF4'),
-                    reason='Need netCDF4 module for test')
+@pytest.mark.skipif(not find_spec('h5netcdf'),
+                    reason='Need h5netcdf module for test')
 @skip_without_file(JC_EG_ANAT)
 def test_round_trip_netcdf(tmp_path):
     ximg = load(JC_EG_ANAT)
@@ -220,3 +335,55 @@ def test_round_trip_netcdf(tmp_path):
     back = load(out_path)
     assert back.shape == (176, 256, 256)
     assert back.attrs == {'meta': JC_EG_ANAT_META}
+    back = load(f'file:///{out_path}')
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
+
+
+def test_tornado(fserver):
+    # Test static file server for URL reads
+    fserver.write_text_to('text_file', 'some text')
+    fserver.write_bytes_to('binary_file', b'binary')
+    response = fserver.get('text_file')
+    assert response.status_code == 200
+    assert response.text == 'some text'
+    assert fserver.read_text('text_file') == 'some text'
+    assert fserver.read_bytes('text_file') == b'some text'
+    assert fserver.read_bytes('binary_file') == b'binary'
+
+
+@pytest.mark.skipif(not find_spec('h5netcdf'),
+                    reason='Need h5netcdf module for test')
+@skip_without_file(JC_EG_ANAT)
+def test_round_trip_netcdf_url(fserver):
+    ximg = load(JC_EG_ANAT)
+    save(ximg, fserver.server_path / 'out.nc')
+    out_url = fserver.make_url('out.nc')
+    back = load(out_url)
+    assert back.shape == (176, 256, 256)
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
+
+
+@skip_without_file(JC_EG_ANAT)
+def test_matching_img_error(tmp_path):
+    out_json = tmp_path / JC_EG_ANAT_JSON.name
+    with pytest.raises(XibFileError, match='does not appear to exist'):
+        load(out_json)
+    shutil.copy2(JC_EG_ANAT_JSON, tmp_path)
+    with pytest.raises(XibFileError, match='No valid file matching'):
+        load(out_json)
+    out_img = tmp_path / JC_EG_ANAT.name
+    shutil.copy2(JC_EG_ANAT, tmp_path)
+    back = load(out_img)
+    assert back.shape == (176, 256, 256)
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    os.unlink(out_img)
+    with pytest.raises(XibFileError, match='does not appear to exist'):
+        load(out_img)
+    shutil.copy2(JC_EG_ANAT, tmp_path)
+    os.unlink(out_json)
+    back = load(out_img)
+    assert back.attrs == {'meta': JC_EG_ANAT_META_RAW}
+    back = load_bids(out_img, require_json=False)
+    assert back.attrs == {'meta': JC_EG_ANAT_META_RAW}
+    with pytest.raises(XibFileError, match='`require_json` is True'):
+        load_bids(out_img, require_json=True)

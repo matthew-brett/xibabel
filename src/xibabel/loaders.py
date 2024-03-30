@@ -3,20 +3,21 @@
 
 from pathlib import Path
 import json
-from dataclasses import dataclass
 import logging
 import importlib
+import os.path as op
 
 import numpy as np
 import psutil
 
 import nibabel as nib
 from nibabel.spatialimages import HeaderDataError
-from nibabel.filename_parser import splitext_addext
+from nibabel.filename_parser import parse_filename
+from nibabel.fileholders import FileHolder
+
+import fsspec
 import xarray as xr
 import dask.array as da
-
-from .xutils import merge
 
 
 logger = logging.getLogger(__name__)
@@ -81,12 +82,6 @@ class FDataObj:
                 return sizes
             sizes[axis_no] = 1
         return sizes
-
-
-@dataclass
-class InvalidBIDSImage:
-    data: None
-    error: str
 
 
 dim_recoder = {
@@ -166,67 +161,289 @@ def wrap_header(header):
     return NiftiWrapper(header)
 
 
-def load_nibabel(file_path):
-    img = nib.load(file_path)
-    return img, wrap_header(img.header).to_meta()
+def load_zarr(url_or_path):
+    return xr.open_dataarray(url_or_path, engine='zarr')
 
 
-def _guess_format(file_path):
-    suff = Path(file_path).suffix
-    if suff == '.json':
-        return 'bids'
-    if suff == '.ximg':
-        return 'zarr'
-    if suff == '.nc':
-        return 'netcdf'
-    # Default defers to Nibabel.
-    return None
+class XibError(Exception):
+    """ Errors from Xibabel file inference and operations
+    """
 
 
-def load_zarr(file_path):
-    return xr.load_dataarray(file_path, engine='zarr')
+class XibFormatError(XibError):
+    """ Errors from Xibabel format specification or inference
+    """
 
 
-class XibFileError(Exception):
+class XibFileError(XibError):
     """ Error from Xibabel file operations
     """
 
 
-def load_netcdf(file_path):
-    if importlib.util.find_spec('netCDF4') is None:
-        raise XibFileError('Please install netcdf4 module to load netCDF')
-    img = xr.load_dataarray(file_path,
-                            engine=xr.backends.NetCDF4BackendEntrypoint)
-    img.attrs = json.loads(img.attrs.get('__json__', ''))
+_JSON_MARKER = '__json__'
+
+
+def _json_attrs2attrs(attrs):
+    out = {}
+    for key, value in attrs.items():
+        if (isinstance(value, list) and
+            len(value) == 2 and
+            value[0] == _JSON_MARKER):
+            value = json.loads(value[1])
+        out[key] = value
+    return out
+
+
+def _1d_arrayable(v):
+    try:
+        arr = np.array(v)
+    except ValueError:
+        return False
+    return arr.ndim < 2
+
+
+def _attrs2json_attrs(attrs):
+    out = {}
+    for key, value in attrs.items():
+        if (isinstance(value, dict) or
+            (isinstance(value, (list, tuple)) and not _1d_arrayable(value))):
+            value = [_JSON_MARKER, json.dumps(value)]
+        out[key] = value
+    return out
+
+
+def _check_netcdf():
+    if importlib.util.find_spec('h5netcdf') is None:
+        raise XibFileError('Please install h5netcdf module to load netCDF')
+
+
+def load_netcdf(url_or_path):
+    _check_netcdf()
+    with fsspec.open(url_or_path) as fobj:
+        img = xr.open_dataarray(fobj, engine='h5netcdf')
+    img.attrs = _json_attrs2attrs(img.attrs)
     return img
 
 
-def load(file_path, format=None):
-    if isinstance(file_path, str):
-        file_path = Path(file_path)
+VALID_URL_SCHEMES = {
+    # List from https://docs.python.org/3/library/urllib.parse.html
+    # plus others supported by fsspec (see below).
+    'file',
+    'ftp',
+    'gopher',
+    'hdl',
+    'http',
+    'https',
+    'imap',
+    'mailto',
+    'mms',
+    'news',
+    'nntp',
+    'prospero',
+    'rsync',
+    'rtsp',
+    'rtsps',
+    'rtspu',
+    'sftp',
+    'shttp',
+    'sip',
+    'sips',
+    'snews',
+    'svn',
+    'svn+ssh',
+    'telnet',
+    'wais',
+    'ws',
+    'wss',  # End of Python doc list.
+    # Following all supported via fsspec
+    'gs',  # Google Storage (fsspec)
+    'adl',  # Azure Data Lake Gen 1
+    'abfs',  # Azure Blob storage.
+    'az',  # Azure Data Lake Gen 2
+}
+
+
+def load(url_or_path, format=None):
     if format is None:
-        format = _guess_format(file_path)
-    else:
-        format = format.lower()
-    if format and format == "zarr":
-        return load_zarr(file_path)
-    if format and format == "netcdf":
-        return load_netcdf(file_path)
-    is_bids = format and format == "bids"
-    if format and not is_bids:
-        raise XibFileError(
-            f"Unknown format '{format}': must be None, 'bids', 'zarr', or 'netcdf'")
-    img, meta = load_nibabel(file_path)
-    base = Path(splitext_addext(file_path)[0])
-    # cut off .nii an .nii.gz
-    if is_bids:
-        sidecar_file = base.with_suffix(".json")
-        if not sidecar_file.exists():
-            logger.warn("Invalid BIDS image, file missing %s", sidecar_file)
-            return InvalidBIDSImage(data=img, error="sidecar file missing", )
-        with sidecar_file.open() as f:
-            sidecar = json.load(f)
-        meta = merge(meta, sidecar)
+        format = PROCESSORS.guess_format(url_or_path)
+    return PROCESSORS.get_loader(format)(url_or_path)
+
+
+_VALID_FILE_EXTS = ('.nii', '.nii.gz')
+
+
+def drop_suffix(in_path, suffix):
+    """ Drop suffix in `suffixes` from str or ``Path`` `in_path`
+
+    `suffix` can be ``str`` (suffix to drop) or sequence.  If sequence, drops
+    first matching suffix in sequence `suffix`.
+
+    Parameters
+    ----------
+    in_path : str or Path
+        Path from which to drop suffix.
+    suffix : str or sequence
+        If ``str``, suffix to drop.  If sequence, search for each suffix, and
+        drop first found suffix from `in_path`.
+
+    Returns
+    -------
+    out_path : str or Path
+        Return type matches that of `in_path`.
+    """
+    if not hasattr(in_path, 'is_file'):
+        return _drop_suffix_str(in_path, suffix)
+    return in_path.with_name(_drop_suffix_str(in_path.name, suffix))
+
+
+def _drop_suffix_str(path_str, suffix):
+    suffixes = (suffix,) if isinstance(suffix, str) else suffix
+    for suffix in suffixes:
+        if path_str.endswith(suffix):
+            return path_str[:-(len(suffix))]
+    return path_str
+
+
+def replace_suffix(in_path, old_suffix, new_suffix):
+    """ Replace `in_path` suffix with `new_suffix`, allowing for `old_suffix`
+
+    Always replace suffix of `in_path`, if present, but allowing for any
+    special (multi-dot) suffixes in `old_sequence`.
+
+    `old_suffix` can be ``str`` (suffix to drop) or sequence.  If sequence,
+    drops first matching suffix in sequence `suffixes` before appending
+    `new_suffix`.
+
+    Parameters
+    ----------
+    in_path : str or Path
+        Path from which to replace suffix.
+    old_suffix : str or sequence
+        If ``str``, suffix to drop before replacing.  If sequence, search for
+        each suffix, and drop first found suffix from `in_path`.
+    new_suffix : str
+        Suffix to append.
+
+    Returns
+    -------
+    out_path : str or Path
+        Return type matches that of `in_path`.
+    """
+    is_path = hasattr(in_path, 'is_file')
+    path_str = in_path.name if is_path else in_path
+    dropped = _drop_suffix_str(path_str, old_suffix)
+    replaced = op.splitext(dropped)[0] + new_suffix
+    return in_path.with_name(replaced) if is_path else replaced
+
+
+def _valid_or_raise(fs, url_base, exts):
+    for ext in exts:
+        target_url = replace_suffix(url_base, (), ext)
+        if fs.exists(target_url):
+            return fsspec.open(target_url, compression='infer')
+    msg_suffix = (('one of ' if len(exts) > 1 else '') +
+                  ', '.join(f"'{e}'" for e in exts))
+    raise XibFileError(
+        f"No valid file matching '{url_base}' + {msg_suffix}")
+
+
+def load_bids(url_or_path, *, require_json=True):
+    """ Load image from BIDS-format data at `url_or_path`
+
+    `url_or_path` may point directly to ``.json`` file, or to Nibabel format
+    file, for which we expect a ``.json`` file to be present.
+
+    In the second case, if `require_json` is True, and we cannot find a
+    matching `.json` file, raise error, otherwise return image as best read.
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    require_json : {True, False}, optional, keyword-only
+        If True, raise error if `url_or_path` is an image, and there is no
+        matching JSON file.
+
+    Returns
+    -------
+    bids_ximg : Xibabel image
+
+    Raises
+    ------
+    XibFileError
+        If `require_json` is True, `url_or_path` does not name a ``.json`` file
+        and there is no ``.json`` file corresponding to `url_or_path`.
+    """
+    sidecar_file = None
+    # If url_or_path has .json suffix, search for matching image file.
+    if str(url_or_path).endswith('.json'):
+        sidecar_file = fsspec.open(url_or_path)
+        fs = sidecar_file.fs
+        if not fs.exists(url_or_path):
+            raise XibFileError(
+                f'{url_or_path} does not appear to exist')
+        img_file = _valid_or_raise(fs,
+                                   drop_suffix(url_or_path, '.json'),
+                                   _VALID_FILE_EXTS)
+    else:  # Image file extensions.  Search for JSON.
+        img_file = fsspec.open(url_or_path, compression='infer')
+        fs = img_file.fs
+        if not fs.exists(url_or_path):
+            raise XibFileError(
+                f'{url_or_path} does not appear to exist')
+        url_uncomp = drop_suffix(url_or_path, _comp_exts())
+        url_json = replace_suffix(url_uncomp, (), '.json')
+        if fs.exists(url_json):
+            sidecar_file = fs.open(url_json)
+        elif require_json:
+            raise XibFileError(
+                f'BIDS loading {url_or_path} but no corresponding '
+                f'{url_json} file, and `require_json` is True')
+    img, meta = _nibabel2img_meta(img_file)
+    if sidecar_file:
+        with sidecar_file as fobj:
+            meta.update(json.load(fobj))
+    return _img_meta2ximg(img, meta, url_or_path)
+
+
+def load_nibabel(url_or_path):
+    return load_bids(url_or_path, require_json=False)
+
+
+def _comp_exts():
+    return tuple(f'.{ext}' for ext in fsspec.utils.compressions)
+
+
+def _path2class(filename):
+    compression_exts = _comp_exts()
+    for klass in nib.all_image_classes:
+        base, ext, gzext, ftype = parse_filename(filename,
+                                                 klass.files_types,
+                                                 compression_exts)
+        if ftype == 'image':
+            return klass
+    raise XibFileError(f'No single-file Nibabel class for {filename}')
+
+
+class FSFileHolder(FileHolder):
+
+    def __del__(self):
+        self.fileobj.close()
+
+
+def _nibabel2img_meta(img_file):
+    # Identify relevant files from img_file
+    # Make file_map with opened files.
+    if 'local' in img_file.fs.protocol:
+        img = nib.load(img_file.path)
+    else:  # Not local - use stream interface.
+        img_klass = _path2class(img_file.full_name)
+        # We are passing out opened fsspec files.
+        fh = FileHolder(img_file.full_name, img_file.open())
+        img = img_klass.from_file_map({'image': fh})
+    return img, wrap_header(img.header).to_meta()
+
+
+def _img_meta2ximg(img, meta, url_or_path):
     coords = {}
     if (TR := meta.get("RepetitionTime")):
         time_coords = np.arange(0, (img.shape[-1]) * TR, TR)
@@ -237,18 +454,82 @@ def load(file_path, format=None):
     return xr.DataArray(da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
                         dims=["i", "j", "k", "time"][:dataobj.ndim],
                         coords=coords,
-                        name=base.name,
+                        name=_url2name(url_or_path),
                         # NB: zarr can't serialize numpy arrays as attrs
                         attrs={"meta": meta}) #"header": dict(img.header),
 
 
-def save(obj, file_path, format=None):
-    file_path = Path(file_path)
-    format = _guess_format(file_path)
-    if format == 'zarr':
-        return obj.to_zarr(file_path, mode='w')
-    elif format == 'netcdf':
-        out = obj.copy()  # Shallow copy by default.
-        out.attrs = {'__json__': json.dumps(obj.attrs)}
-        return out.to_netcdf(file_path)
-    raise XibFileError(f'Saving in format "{format}" not yet supported')
+def _url2name(url_or_path):
+    name = drop_suffix(url_or_path, _comp_exts())
+    return Path(name).stem
+
+
+def save(obj, url_or_path, format=None):
+    if format is None:
+        format = PROCESSORS.guess_format(url_or_path)
+    format = 'bids' if format is None else format
+    return PROCESSORS.get_saver(format)(obj, url_or_path)
+
+
+def save_zarr(obj, file_path):
+    return obj.to_zarr(file_path, mode='w')
+
+
+def save_netcdf(obj, file_path):
+    _check_netcdf()
+    out = obj.copy()  # Shallow copy by default.
+    out.attrs = _attrs2json_attrs(out.attrs)
+    return out.to_netcdf(file_path, engine='h5netcdf')
+
+
+class Processors:
+
+    format_processors = {
+        'zarr': dict(exts=('ximg',),
+                     loader=load_zarr,
+                     saver=save_zarr),
+        'netcdf': dict(exts=('nc',),
+                     loader=load_netcdf,
+                     saver=save_netcdf),
+        'bids': dict(exts=('json',),
+                     loader=load_bids,
+                     saver=None),
+        'nibabel': dict(exts=(),  # Defer to Nibabel for extensions
+                     loader=load_nibabel,
+                     saver=None),
+    }
+
+    def __init__(self):
+        self.loaders = set()
+        self.savers = set()
+        self.ext2fmt = {}
+        for fmt, info in self.format_processors.items():
+            if info['loader']:
+                self.loaders.add(fmt)
+            if info['saver']:
+                self.savers.add(fmt)
+            for ext in info['exts']:
+                self.ext2fmt[ext] = fmt
+
+    def get_loader(self, fmt):
+        return self.get_processor(fmt, 'loader')
+
+    def get_saver(self, fmt):
+        return self.get_processor(fmt, 'saver')
+
+    def get_processor(self, fmt, ptype='loader'):
+        fmt = 'nibabel' if fmt is None else fmt
+        pset = (self.loaders if ptype == 'loader'
+                else self.savers)
+        if fmt not in pset:
+            raise XibFormatError(
+                f"Cannot use format '{fmt}' as {ptype} for image; "
+                f"valid formats are {','.join(pset)}")
+        return self.format_processors[fmt][ptype]
+
+    def guess_format(self, file_path):
+        suff = str(file_path).split('.')[-1]
+        return self.ext2fmt.get(suff)
+
+
+PROCESSORS = Processors()

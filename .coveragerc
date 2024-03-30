@@ -1,3 +1,5 @@
 [run]
 branch = True
 source = xibabel
+omit =
+    src/xibabel/tests/run_server.py
