@@ -44,4 +44,5 @@ jobs:
       - name: Check experiment notebooks
         run: |
           pip install jupytext
+          python -m ipykernel install --user --name xibabel
           jupytext --execute experiments/*.Rmd
