@@ -340,10 +340,11 @@ def replace_suffix(in_path, old_suffix, new_suffix):
 
 def _valid_or_raise(fs, url_base, exts):
     for ext in exts:
-        target_url = url_base + ext
+        target_url = replace_suffix(url_base, (), ext)
         if fs.exists(target_url):
             return fsspec.open(target_url, compression='infer')
-    msg_suffix = ('one of' if len(exts) > 1 else '') + ', '.join(exts)
+    msg_suffix = (('one of ' if len(exts) > 1 else '') +
+                  ', '.join(f"'{e}'" for e in exts))
     raise XibFileError(
         f"No valid file matching '{url_base}' + {msg_suffix}")
 

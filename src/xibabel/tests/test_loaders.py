@@ -7,6 +7,7 @@ from importlib.util import find_spec
 import gzip
 from itertools import product
 import json
+import shutil
 
 import numpy as np
 
@@ -16,7 +17,7 @@ from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              PROCESSORS, _json_attrs2attrs, drop_suffix,
                              replace_suffix, _attrs2json_attrs, wrap_header,
-                             _path2class)
+                             _path2class, XibFileError)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
@@ -355,5 +356,18 @@ def test_round_trip_netcdf_url(fserver):
     save(ximg, fserver.server_path / 'out.nc')
     out_url = fserver.make_url('out.nc')
     back = load(out_url)
+    assert back.shape == (176, 256, 256)
+    assert back.attrs == {'meta': JC_EG_ANAT_META}
+
+
+@skip_without_file(JC_EG_ANAT)
+def test_matching_img_error(tmp_path):
+    out_json = tmp_path / JC_EG_ANAT_JSON.name
+    shutil.copy2(JC_EG_ANAT_JSON, tmp_path)
+    with pytest.raises(XibFileError, match='No valid file matching'):
+        load(out_json)
+    out_img = tmp_path / JC_EG_ANAT.name
+    shutil.copy2(JC_EG_ANAT, tmp_path)
+    back = load(out_img)
     assert back.shape == (176, 256, 256)
     assert back.attrs == {'meta': JC_EG_ANAT_META}
