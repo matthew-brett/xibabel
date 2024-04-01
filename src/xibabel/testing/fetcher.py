@@ -74,6 +74,8 @@ class Fetcher:
         we have is the actual file, or a link (sort-of-thing) to the file, that
         still needs a ``datalad get`` to fetch the actual contents.
         """
+        # Also consider output of `git annex whereis` on `path`.  This shows
+        # one entry for [here] if the file is present.  Test on Windows.
         if not path.is_file():  # Can be True for git annex links on Windows.
             return False
         if path.is_symlink():  # Appears to be True on Unices.
