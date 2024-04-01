@@ -13,7 +13,8 @@ readme = "README.md"
 requires-python = ">=3.8"
 dynamic = ["version", "description"]
 home-page = "https://github.com/matthew-brett/xibabel"
-classifiers = ['License :: OSI Approved :: BSD License']
+classifiers = ['License :: OSI Approved :: BSD License',
+               'Development Status :: 2 - Pre-Alpha']
 dependencies = [
     'xarray',
     'dask',
