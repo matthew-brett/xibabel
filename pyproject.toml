@@ -38,7 +38,9 @@ docs = [
     'sphinx>=7.0',
     'numpydoc>=1.6.0',
     'matplotlib',
-    'ipython'
+    'ipython',
+    'jupytext',
+    'aiohttp'
 ]
 test = [
     'pyyaml',
@@ -50,7 +52,6 @@ test = [
 optional = [
     'h5netcdf',
     'matplotlib',
-    'fsspec',
     'requests',
     'aiohttp'
 ]
