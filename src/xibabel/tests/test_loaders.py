@@ -16,8 +16,9 @@ import nibabel as nib
 from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              PROCESSORS, _json_attrs2attrs, drop_suffix,
-                             replace_suffix, _attrs2json_attrs, wrap_header,
-                             _path2class, XibFileError, to_nibabel)
+                             replace_suffix, _attrs2json_attrs, hdr2meta,
+                             _path2class, XibFileError, to_nifti,
+                             _ni_sort_expand_dims)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
@@ -92,7 +93,7 @@ def out_back(img, out_path):
         os.unlink(out_path)
     nib.save(img, out_path)
     img = nib.load(out_path)
-    return img, wrap_header(img.header).to_meta()
+    return img, hdr2meta(img.header)
 
 
 def test_nibabel_tr(tmp_path):
@@ -403,12 +404,47 @@ def test_matching_img_error(tmp_path):
         load_bids(out_img, require_json=True)
 
 
+def test_ni_sort_expand_dims():
+    assert _ni_sort_expand_dims([]) == ([],
+                                        ['i', 'j', 'k'],
+                                        [0, 1, 2])
+    assert _ni_sort_expand_dims(['time']) == (['time'],
+                                              ['i', 'j', 'k'],
+                                              [0, 1, 2])
+    assert (_ni_sort_expand_dims(['j']) ==
+            (['j'],
+             ['i', 'k'],
+             [0, 2]))
+    assert (_ni_sort_expand_dims(['time', 'j']) ==
+            (['j', 'time'],
+             ['i', 'k'],
+             [0, 2]))
+    assert (_ni_sort_expand_dims(['j', 'i']) ==
+            (['i', 'j'],
+             ['k'],
+             [2]))
+    assert (_ni_sort_expand_dims(['time', 'j', 'k']) ==
+            (['j', 'k', 'time'],
+             ['i'],
+             [0]))
+
+
 @skip_without_file(JC_EG_ANAT)
-def test_to_bids(tmp_path):
-    ximg = load(JC_EG_ANAT)
-    img = to_nibabel(ximg)
-    assert np.all(np.array(ximg) == img.get_fdata())
-    assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
-    img = to_nibabel(ximg.T)
-    assert np.all(np.array(ximg) == img.get_fdata())
-    assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+@skip_without_file(JC_EG_FUNC)
+def test_to_nifti():
+    for pth in (JC_EG_ANAT, JC_EG_FUNC):
+        orig_img = nib.load(JC_EG_ANAT)
+        orig_data = orig_img.get_fdata()
+        ximg = load(JC_EG_ANAT)
+        # Check data is the same for basic load.
+        assert np.all(ximg == orig_data)
+        # Basic conversion.
+        img = to_nifti(ximg)
+        assert np.all(img.get_fdata() == orig_data)
+        # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+        img = to_nifti(ximg.T)
+        assert np.all(img.get_fdata() == orig_data)
+        # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+        img = to_nifti(ximg.T.sel(k=32))  # Drop k axis
+        assert np.all(img.get_fdata() == orig_data[:, :, 32:33])
+        # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW

@@ -97,7 +97,7 @@ time_unit_scaler = {
     'usec': 1 / 1_000_000}
 
 
-class NiftiWrapper:
+class NiHeader2Meta:
 
     def __init__(self, header):
         self.header = nib.Nifti1Header.from_header(header)
@@ -156,9 +156,9 @@ class NiftiWrapper:
         return {k: v for k, v in meta.items() if v is not None}
 
 
-def wrap_header(header):
+def hdr2meta(header):
     # We could try extracting more information from other file types, but
-    return NiftiWrapper(header)
+    return NiHeader2Meta(header).to_meta()
 
 
 def load_zarr(url_or_path, **kwargs):
@@ -484,7 +484,7 @@ def _nibabel2img_meta(img_file):
         # We are passing out opened fsspec files.
         fh = FileHolder(img_file.full_name, img_file.open())
         img = img_klass.from_file_map({'image': fh})
-    return img, wrap_header(img.header).to_meta()
+    return img, hdr2meta(img.header)
 
 
 def _img_meta2ximg(img, meta, url_or_path):
@@ -620,3 +620,42 @@ class Processors:
 
 
 PROCESSORS = Processors()
+
+
+_NI_SPACE_DIMS = ('i', 'j', 'k')
+_NI_SPACETIME_DIMS = _NI_SPACE_DIMS + ('time',)
+
+
+
+def _ni_sort_expand_dims(img_dims):
+    # Allow for 3D images
+    target_dims = (_NI_SPACE_DIMS if set(img_dims).issubset(_NI_SPACE_DIMS)
+                   else _NI_SPACETIME_DIMS)
+    x_dims = []
+    x_axes = []
+    out_order = []
+    for expected_pos, expected_dim in enumerate(target_dims):
+        try:
+            curr_pos = img_dims.index(expected_dim)
+        except ValueError:
+            x_dims.append(expected_dim)
+            x_axes.append(expected_pos)
+            continue
+        out_order.append(img_dims[curr_pos])
+    return (out_order + [d for d in img_dims if d not in out_order],
+            x_dims,
+            x_axes)
+
+
+def _to_ni_header(ximg):
+    return None
+
+
+def to_nifti(ximg):
+    # Reorient, expand missing dimensions
+    order, dims, axes = _ni_sort_expand_dims(ximg.dims)
+    ximg = ximg.transpose(*order).expand_dims(dims, axes)
+    # Build header from attributes.
+    hdr = _to_ni_header(ximg)
+    # Adjust affines.
+    return nib.Nifti1Image(ximg, None, hdr)
