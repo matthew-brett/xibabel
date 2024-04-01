@@ -20,8 +20,6 @@ skip_without_file = fetcher.skip_without_file
 # Example files
 JC_EG_FUNC = (DATA_PATH / 'ds000009' / 'sub-07' / 'func' /
               'sub-07_task-balloonanalogrisktask_bold.nii.gz')
-JC_EG_FUNC = (DATA_PATH / 'ds000009' / 'sub-07' / 'func' /
-              'sub-07_task-balloonanalogrisktask_bold.nii.gz')
 JC_EG_FUNC_JSON = drop_suffix(JC_EG_FUNC, ('.nii.gz',)).with_suffix('.json')
 JC_EG_ANAT= (DATA_PATH / 'ds000009' / 'sub-07' / 'anat' /
              'sub-07_T1w.nii.gz')
