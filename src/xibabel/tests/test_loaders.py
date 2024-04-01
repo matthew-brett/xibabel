@@ -308,6 +308,20 @@ def test_anat_loader_http(fserver):
 
 
 @skip_without_file(JC_EG_ANAT)
+def test_anat_loader_http_params(fserver, tmp_path):
+    # Test params get passed through in kwargs.
+    nb_img = nib.load(JC_EG_ANAT)
+    out_url = 'simplecache::' + fserver.make_url(JC_EG_ANAT.name)
+    out_cache = tmp_path / 'files'
+    assert not out_cache.is_dir()
+    ximg = load(out_url,
+                simplecache={'cache_storage': str(out_cache)})
+    assert np.all(np.array(ximg) == nb_img.get_fdata())
+    assert out_cache.is_dir()
+    assert len(list(out_cache.glob('*'))) == 2  # JSON and Nifti
+
+
+@skip_without_file(JC_EG_ANAT)
 def test_round_trip(tmp_path):
     ximg = load(JC_EG_ANAT)
     assert ximg.shape == (176, 256, 256)
