@@ -17,7 +17,7 @@ from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              PROCESSORS, _json_attrs2attrs, drop_suffix,
                              replace_suffix, _attrs2json_attrs, wrap_header,
-                             _path2class, XibFileError)
+                             _path2class, XibFileError, to_nibabel)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
@@ -401,3 +401,14 @@ def test_matching_img_error(tmp_path):
     assert back.attrs == JC_EG_ANAT_META_RAW
     with pytest.raises(XibFileError, match='`require_json` is True'):
         load_bids(out_img, require_json=True)
+
+
+@skip_without_file(JC_EG_ANAT)
+def test_to_bids(tmp_path):
+    ximg = load(JC_EG_ANAT)
+    img = to_nibabel(ximg)
+    assert np.all(np.array(ximg) == img.get_fdata())
+    assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+    img = to_nibabel(ximg.T)
+    assert np.all(np.array(ximg) == img.get_fdata())
+    assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
