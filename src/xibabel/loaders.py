@@ -161,8 +161,28 @@ def wrap_header(header):
     return NiftiWrapper(header)
 
 
-def load_zarr(file_path):
-    return xr.open_dataarray(file_path, engine='zarr', chunks='auto')
+def load_zarr(url_or_path, **kwargs):
+    r""" Load image from Zarr/Xibabel-format data at `url_or_path`
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    \*\*kwargs : dict
+        Any remaining named arguments passed to `xr.open_dataarray`.
+
+    Returns
+    -------
+    ximg : Xibabel image
+
+    Raises
+    ------
+    XibFileError
+        If there is no file corresponding to `url_or_path`.
+    """
+    return xr.open_dataarray(url_or_path,
+                             engine='zarr',
+                             chunks='auto',
+                             **kwargs)
 
 
 class XibError(Exception):
@@ -217,18 +237,56 @@ def _check_netcdf():
         raise XibFileError('Please install h5netcdf module to load netCDF')
 
 
-def load_netcdf(url_or_path):
+def load_netcdf(url_or_path, **kwargs):
+    r""" Load image from netCDF/Xibabel-format data at `url_or_path`
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    \*\*kwargs : dict
+        Any remaining named arguments passed to `xr.open_dataarray`.
+
+    Returns
+    -------
+    ximg : Xibabel image
+
+    Raises
+    ------
+    XibFileError
+        If there is no file corresponding to `url_or_path`.
+    """
     _check_netcdf()
     with fsspec.open(url_or_path) as fobj:
-        img = xr.open_dataarray(fobj, engine='h5netcdf')
+        img = xr.open_dataarray(fobj, engine='h5netcdf', **kwargs)
     img.attrs = _json_attrs2attrs(img.attrs)
     return img
 
 
-def load(url_or_path, format=None):
+def load(url_or_path, *, format=None, **kwargs):
+    r""" Load image Xibabel or Nibbel image at `url_or_path`
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    format : None or str, optional
+        If None, infer format from `url_or_path`, otherwise one of
+        {', '.join(f'{e}' for e in PROCESSORS.format_processors)}
+    \*\*kwargs : dict
+        Any remaining named arguments passed to backend corresponding to
+        `format`.
+
+    Returns
+    -------
+    ximg : Xibabel image
+
+    Raises
+    ------
+    XibFileError
+        If there is no file corresponding to `url_or_path`.
+    """
     if format is None:
         format = PROCESSORS.guess_format(url_or_path)
-    return PROCESSORS.get_loader(format)(url_or_path)
+    return PROCESSORS.get_loader(format)(url_or_path, **kwargs)
 
 
 # Extensions we will search for valid images paired with JSON files.
@@ -310,8 +368,8 @@ def _valid_or_raise(fs, url_base, exts):
         f"No valid file matching '{url_base}' + {msg_suffix}")
 
 
-def load_bids(url_or_path, *, require_json=True):
-    """ Load image from BIDS-format data at `url_or_path`
+def load_bids(url_or_path, *, require_json=True, **kwargs):
+    r""" Load image from BIDS-format data at `url_or_path`
 
     `url_or_path` may point directly to ``.json`` file, or to Nibabel format
     file, for which we expect a ``.json`` file to be present.
@@ -325,6 +383,8 @@ def load_bids(url_or_path, *, require_json=True):
     require_json : {True, False}, optional, keyword-only
         If True, raise error if `url_or_path` is an image, and there is no
         matching JSON file.
+    \*\*kwargs : dict
+        Any remaining named arguments passed to `fsspec.open`.
 
     Returns
     -------
@@ -339,7 +399,7 @@ def load_bids(url_or_path, *, require_json=True):
     sidecar_file = None
     # If url_or_path has .json suffix, search for matching image file.
     if str(url_or_path).endswith('.json'):
-        sidecar_file = fsspec.open(url_or_path)
+        sidecar_file = fsspec.open(url_or_path, **kwargs)
         fs = sidecar_file.fs
         if not fs.exists(url_or_path):
             raise XibFileError(
@@ -348,7 +408,7 @@ def load_bids(url_or_path, *, require_json=True):
                                    drop_suffix(url_or_path, '.json'),
                                    _JSON_PAIRED_EXTS)
     else:  # Image file extensions.  Search for JSON.
-        img_file = fsspec.open(url_or_path, compression='infer')
+        img_file = fsspec.open(url_or_path, compression='infer', **kwargs)
         fs = img_file.fs
         if not fs.exists(url_or_path):
             raise XibFileError(
@@ -368,8 +428,29 @@ def load_bids(url_or_path, *, require_json=True):
     return _img_meta2ximg(img, meta, url_or_path)
 
 
-def load_nibabel(url_or_path):
-    return load_bids(url_or_path, require_json=False)
+def load_nibabel(url_or_path, **kwargs):
+    r""" Load image from Nibabel-format data at `url_or_path`
+
+    `url_or_path` may point directly to ``.json`` file, or to Nibabel format
+    file, for expect a ``.json`` file to be present, in which case we will load
+    it.
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    \*\*kwargs : dict
+        Any remaining named arguments passed to `fsspec.open`.
+
+    Returns
+    -------
+    ximg : Xibabel image
+
+    Raises
+    ------
+    XibFileError
+        If there is no file corresponding to `url_or_path`.
+    """
+    return load_bids(url_or_path, require_json=False, **kwargs)
 
 
 def _comp_exts():
@@ -427,22 +508,65 @@ def _url2name(url_or_path):
     return Path(name).stem
 
 
-def save(obj, url_or_path, format=None):
+def save(obj, url_or_path, format=None, **kwargs):
+    r""" Save Xibabel image at `url_or_path`
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    format : None or str, optional
+        If None, infer format from `url_or_path`, otherwise one of
+        'zarr', 'netcdf', 'bids', 'nibabel'.
+    \*\*kwargs : dict
+        Any remaining named arguments passed to backend corresponding to
+        `format`.
+
+    Returns
+    -------
+    ret : object
+        Return depends on `format`.  See `save_zarr` and `save_netcdf` for
+        examples.
+    """
     if format is None:
         format = PROCESSORS.guess_format(url_or_path)
-    format = 'bids' if format is None else format
-    return PROCESSORS.get_saver(format)(obj, url_or_path)
+    if format is None:
+        raise XibFormatError(f"Could not guess format from {url_or_path}")
+    return PROCESSORS.get_saver(format)(obj, url_or_path, **kwargs)
 
 
-def save_zarr(obj, file_path):
-    return obj.to_zarr(file_path, mode='w')
+def save_zarr(obj, file_path, **kwargs):
+    r""" Save Xibabel image at `url_or_path` in Zarr / Xibabel format.
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    \*\*kwargs : dict
+        Arguments to pass to `to_zarr` method of `obj`.
+
+    Returns
+    -------
+    zbe : ZarrBackendStore
+    """
+    return obj.to_zarr(file_path, mode='w', **kwargs)
 
 
-def save_netcdf(obj, file_path):
+def save_netcdf(obj, file_path, **kwargs):
+    r""" Save Xibabel image at `url_or_path` in netCDF / Xibabel format.
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    \*\*kwargs : dict
+        Arguments to pass to `to_netcdf` method of `obj`.
+
+    Returns
+    -------
+    None
+    """
     _check_netcdf()
     out = obj.copy()  # Shallow copy by default.
     out.attrs = _attrs2json_attrs(out.attrs)
-    return out.to_netcdf(file_path, engine='h5netcdf')
+    return out.to_netcdf(file_path, engine='h5netcdf', **kwargs)
 
 
 class Processors:
