@@ -419,7 +419,7 @@ def _img_meta2ximg(img, meta, url_or_path):
                         coords=coords,
                         name=_url2name(url_or_path),
                         # NB: zarr can't serialize numpy arrays as attrs
-                        attrs={"meta": meta}) #"header": dict(img.header),
+                        attrs=meta)
 
 
 def _url2name(url_or_path):

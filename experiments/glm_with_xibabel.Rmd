@@ -1,9 +1,23 @@
-""" Scripting again
-"""
+---
+jupyter:
+  jupytext:
+    cell_metadata_filter: -all
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.1
+  kernelspec:
+    display_name: Python 3 (ipykernel)
+    language: python
+    name: python3
+---
+
+# General linear model with Xibabel
 
 
+```{python}
 import numpy as np
-
 import pandas as pd
 
 import xarray as xr
@@ -11,31 +25,61 @@ import xarray as xr
 import nibabel as nib
 import xibabel as xib
 
-# For constructing the design.
-from nipy.modalities.fmri.design import block_design, natural_spline
-
+# For test images.
 from xibabel import testing
+```
 
-rng = np.random.default_rng()
+Make sure we have the minimal test data; we will use a test image for the
+General Linear Model (GLM).
 
+```{python}
 # Get the data
 testing.get_set('minimal')
+```
 
+We start by getting the machinery to compile the design matrix.
+
+```{python}
+# For constructing the design.
+from nipy.modalities.fmri.design import (block_design, natural_spline)
+```
+
+This is the root for the images and design files:
+
+```{python}
 img_path_root = (testing.DATA_PATH /
                  'ds000105' /
                  'sub-1' /
                  'func' /
                  'sub-1_task-objectviewing_run-01_')
+```
 
+```{python}
+# 4D image.
 bold_path = img_path_root.with_name(img_path_root.name + 'bold.nii.gz')
+# Design file.
 tsv_path = img_path_root.with_name(img_path_root.name + 'events.tsv')
+```
 
+```{python}
 # Load the events ready to make a design.
 event_df = pd.read_csv(tsv_path, sep='\t')
 df = event_df.rename(columns={'onset': 'start', 'duration': 'end'})
 df['end'] = df['start'] + df['end']
-block_spec = df.to_records(index=None)
+df
+```
 
+Nipy needs the design as NumPy recarrays.
+
+```{python}
+block_spec = df.to_records(index=None)
+```
+
+## GLM the Nibabel way
+
+We'll use Nibabel for now to get the parameter for the design.
+
+```{python}
 nib_img = nib.load(bold_path)
 vol_shape = nib_img.shape[:-1]
 n_vols = nib_img.shape[-1]
@@ -51,51 +95,94 @@ n_drift = drift.shape[1]
 design_matrix = np.hstack([regressors, drift])
 # Contrasts for the eight event types.
 con_mat = np.hstack([con_tt0, np.zeros((n_contrasts, n_drift))])
+```
 
+```{python}
 # For notation!
 X = design_matrix
+```
 
+Nibabel's incantation to get the 4D array.
+
+```{python}
 # Analysis the old way.
 # The 4D array (i, j, k, time)
 data = nib_img.get_fdata()
+```
 
+We reshape the data to time by voxels to run the estimation.
+
+```{python}
 # Reshape to time by (i * j * k)
 vols_by_voxels = np.reshape(data, (-1, n_vols)).T
+```
 
+```{python}
 # Run estimation with B = X+ Y
 # To get B such that errors (E = Y - X @ B) are minimized in the sense
 # of having the smallest np.sum(E ** 2, axis=0) for each column.
 # Betas for each voxel (n_cols_in_X by n_voxels).
 pX = np.linalg.pinv(X)
 B = pX @ vols_by_voxels
+```
 
+`B` is a parameters by voxels array of parameters, with one row for each column in the design matrix `X`.
+
+Run the contrasts and assemble the corresponding 3D array.
+
+```{python}
 # Contrast applied.  Two slopes compared
 c = con_mat[4, :]
 con_vec = c @ B
+```
 
+```{python}
 con_arr = np.reshape(con_vec, vol_shape)
+```
 
-# OK - that was the crappy way.
-# Now the awesome way.
+This was all rather clunky.  Xarray (inside Xibabel) makes this rather easier to write.
+
+##GLM with Xibabel
+
+Load the Nifti image with Xibabel.  Xibabel can also load its own zarr-based format, or from the equivalent HDF5.
+
+```{python}
 xib_img = xib.load(bold_path)
-# assert isinstance(xib_img, xr.DataArray)
+xib_img
+```
 
+```{python}
 # Make the design
 xesign = xr.DataArray(pX, dims=['p', 'time'])
+```
 
+We may want to specify data chunking to save memory.  In this case we specify we want to run the calculation with slabs of 5 slices.
+
+```{python}
 # Optional: make the data chunky.
 chunked = xib_img.chunk({'k': 5})
+```
 
+The estimation is more obvious, because of the array axis naming.
+
+```{python}
 # Do the estimation
 xB = xr.dot(xesign, xib_img, dim=['time', 'time'])
+```
 
+This is the equivalent contrast.
+
+```{python}
 xC = xr.DataArray(c, dims=['p'])
+```
 
+Multiplying by the contrast is safer and more obvious, because of the named
+axes.
+
+```{python}
 x_c_arr = xr.dot(xC, xB, dim=['p', 'p'])
+```
 
+```{python}
 assert np.allclose(x_c_arr, con_arr)
-
-# Questions:
-# Does this really save memory?
-# Is there a better storage format to make this out-of-memory or some similar
-# optimization?
+```

@@ -229,7 +229,7 @@ def test_json_attrs():
 def test_nib_loader_jc():
     img = nib.load(JC_EG_FUNC)
     ximg = load_nibabel(JC_EG_FUNC)
-    assert ximg.meta == JC_EG_FUNC_META
+    assert ximg.attrs == JC_EG_FUNC_META
     assert np.all(np.array(ximg) == img.get_fdata())
 
 
@@ -237,10 +237,10 @@ def test_nib_loader_jc():
 def test_nib_loader_jh():
     img = nib.load(JH_EG_FUNC)
     ximg = load_nibabel(JH_EG_FUNC)
-    assert ximg.meta == {'RepetitionTime': 2.5,
-                         'xib-affines':
-                         {'scanner': img.affine.tolist()}
-                        }
+    assert ximg.attrs == {'RepetitionTime': 2.5,
+                          'xib-affines':
+                          {'scanner': img.affine.tolist()}
+                         }
 
 
 if fetcher.have_file(JC_EG_FUNC):
@@ -280,7 +280,7 @@ def test_anat_loader():
         ximg = loader(in_path)
         assert ximg.shape == (176, 256, 256)
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
-        assert ximg.meta == JC_EG_ANAT_META
+        assert ximg.attrs == JC_EG_ANAT_META
         assert np.all(np.array(ximg) == img.get_fdata())
 
 
@@ -303,7 +303,7 @@ def test_anat_loader_http(fserver):
         # Check parameters
         assert ximg.shape == (176, 256, 256)
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
-        assert ximg.meta == JC_EG_ANAT_META
+        assert ximg.attrs == JC_EG_ANAT_META
         assert np.all(np.array(ximg) == nb_img.get_fdata())
 
 
@@ -315,14 +315,14 @@ def test_round_trip(tmp_path):
     save(ximg, out_path)
     back = load(out_path)
     assert back.shape == (176, 256, 256)
-    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    assert back.attrs == JC_EG_ANAT_META
     # And again
     save(ximg, out_path)
     back = load(out_path)
-    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    assert back.attrs == JC_EG_ANAT_META
     # With url
     back = load(f'file:///{out_path}')
-    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    assert back.attrs == JC_EG_ANAT_META
 
 
 @pytest.mark.skipif(not find_spec('h5netcdf'),
@@ -334,9 +334,9 @@ def test_round_trip_netcdf(tmp_path):
     save(ximg, out_path)
     back = load(out_path)
     assert back.shape == (176, 256, 256)
-    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    assert back.attrs == JC_EG_ANAT_META
     back = load(f'file:///{out_path}')
-    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    assert back.attrs == JC_EG_ANAT_META
 
 
 def test_tornado(fserver):
@@ -360,7 +360,7 @@ def test_round_trip_netcdf_url(fserver):
     out_url = fserver.make_url('out.nc')
     back = load(out_url)
     assert back.shape == (176, 256, 256)
-    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    assert back.attrs == JC_EG_ANAT_META
 
 
 @skip_without_file(JC_EG_ANAT)
@@ -375,15 +375,15 @@ def test_matching_img_error(tmp_path):
     shutil.copy2(JC_EG_ANAT, tmp_path)
     back = load(out_img)
     assert back.shape == (176, 256, 256)
-    assert back.attrs == {'meta': JC_EG_ANAT_META}
+    assert back.attrs == JC_EG_ANAT_META
     os.unlink(out_img)
     with pytest.raises(XibFileError, match='does not appear to exist'):
         load(out_img)
     shutil.copy2(JC_EG_ANAT, tmp_path)
     os.unlink(out_json)
     back = load(out_img)
-    assert back.attrs == {'meta': JC_EG_ANAT_META_RAW}
+    assert back.attrs == JC_EG_ANAT_META_RAW
     back = load_bids(out_img, require_json=False)
-    assert back.attrs == {'meta': JC_EG_ANAT_META_RAW}
+    assert back.attrs == JC_EG_ANAT_META_RAW
     with pytest.raises(XibFileError, match='`require_json` is True'):
         load_bids(out_img, require_json=True)

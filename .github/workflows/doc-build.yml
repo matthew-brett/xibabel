@@ -25,6 +25,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+      - name: Install Datalad on Unices
+        uses: datalad/datalad-action/install@main
       - name: Install
         run: |
           pip install -e '.[docs,developer]'
@@ -39,3 +41,8 @@ jobs:
           cd doc
           make clean
           make doctest
+      - name: Check experiment notebooks
+        run: |
+          pip install jupytext
+          python -m ipykernel install --user --name xibabel
+          jupytext --execute experiments/*.Rmd

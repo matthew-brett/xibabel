@@ -1,3 +1,18 @@
+---
+jupyter:
+  jupytext:
+    cell_metadata_filter: -all
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.1
+  kernelspec:
+    display_name: xibabel
+    language: python
+    name: xibabel
+---
+
 # Slice-timing correction
 
 In this experiment, we will demonstrate slice-timing correction using SciPy's
@@ -9,6 +24,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib
 from matplotlib import pyplot as plt
+plt.rc('image', cmap='gray')
 from scipy.interpolate import make_interp_spline
 import xarray as xr
 # %matplotlib inline
@@ -32,7 +48,7 @@ bold
 This image has an interleaved, ascending slice order:
 
 ```{python}
-slice_times = bold.meta['SliceTiming']
+slice_times = bold.attrs['SliceTiming']
 ```
 
 ```{python}
@@ -97,14 +113,14 @@ Now, let's write a function to perform slice-timing correction, and allow users 
 def slice_timing_correct(bold: xr.DataArray, target_offset: float=0, order: int=3) -> xr.DataArray:
     # New output array
     output = xr.zeros_like(bold)
-    output.attrs['meta'] = bold.attrs['meta'].copy()
+    output.attrs = bold.attrs.copy()
 
     # New time metadata
     output['time'] = bold.time + target_offset
-    slice_timing = output.meta.pop('SliceTiming')
+    slice_timing = output.attrs.pop('SliceTiming')
 
     # If absent, BIDS specifies that SliceEncodingDirection is k
-    slice_dir = bold.meta.get('SliceEncodingDirection', 'k')
+    slice_dir = bold.attrs.get('SliceEncodingDirection', 'k')
     slice_axis = slice_dir[0]
     # Flipped direction simply reverses the array
     if slice_dir[1:] == '-':
