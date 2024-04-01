@@ -10,6 +10,12 @@ The extensions allow code like this:
 
 Here is a basic read and slice operation with Xibabel. Compare to the more manual labor that you would have to do with Nibabel.
 
+To run this code, install Xibabel with:
+
+```bash
+pip install --pre xibabel[optional]
+```
+
 ```python
 # Basic read and slice with Xibabel
 import xibabel as xib
