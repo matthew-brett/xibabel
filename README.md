@@ -1,6 +1,5 @@
 # Xibabel
 
-
 Xibabel is an experimental package for working with neuroimaging data formats.
 
 It builds on the standard Nibabel package, but adds the extensions listed below.
@@ -75,3 +74,7 @@ From Pip — the development code:
 ```bash
 pip install git+https://github.com/matthew-brett/xibabel@main
 ```
+
+## License
+
+We release Xibabel under a BSD simplified 2-clause license (see `LICENSE`).
