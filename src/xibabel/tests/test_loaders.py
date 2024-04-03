@@ -18,7 +18,8 @@ from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              PROCESSORS, _json_attrs2attrs, drop_suffix,
                              replace_suffix, _attrs2json_attrs, hdr2meta,
                              _path2class, XibFileError, to_nifti,
-                             _ni_sort_expand_dims)
+                             _ni_sort_expand_dims, _NI_SPACE_DIMS,
+                             _NI_TIME_DIM)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
@@ -226,11 +227,24 @@ def test_json_attrs():
     assert _json_attrs2attrs(ddj) == dd
 
 
+def _check_dims_coords(ximg):
+    ndims = len(ximg.dims)
+    space_dims = ximg.dims[:3]
+    assert space_dims == _NI_SPACE_DIMS
+    assert space_dims == tuple(ximg.coords)[:3]
+    for dim_no, dim in enumerate(space_dims):
+        coord = ximg.coords[dim]
+        assert np.all(np.array(coord) == np.arange(ximg.shape[dim_no]))
+    if ndims > 3:
+        assert ximg.dims[3] == _NI_TIME_DIM
+
+
 @skip_without_file(JC_EG_FUNC)
 def test_nib_loader_jc():
     img = nib.load(JC_EG_FUNC)
     ximg = load_nibabel(JC_EG_FUNC)
     assert ximg.attrs == JC_EG_FUNC_META
+    _check_dims_coords(ximg)
     assert np.all(np.array(ximg) == img.get_fdata())
 
 
@@ -242,6 +256,7 @@ def test_nib_loader_jh():
                           'xib-affines':
                           {'scanner': img.affine.tolist()}
                          }
+    _check_dims_coords(ximg)
 
 
 if fetcher.have_file(JC_EG_FUNC):
@@ -282,6 +297,7 @@ def test_anat_loader():
         assert ximg.shape == (176, 256, 256)
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
         assert ximg.attrs == JC_EG_ANAT_META
+        _check_dims_coords(ximg)
         assert np.all(np.array(ximg) == img.get_fdata())
 
 
@@ -305,6 +321,7 @@ def test_anat_loader_http(fserver):
         assert ximg.shape == (176, 256, 256)
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
         assert ximg.attrs == JC_EG_ANAT_META
+        _check_dims_coords(ximg)
         assert np.all(np.array(ximg) == nb_img.get_fdata())
 
 
@@ -326,18 +343,22 @@ def test_anat_loader_http_params(fserver, tmp_path):
 def test_round_trip(tmp_path):
     ximg = load(JC_EG_ANAT)
     assert ximg.shape == (176, 256, 256)
+    _check_dims_coords(ximg)
     out_path = tmp_path / 'out.ximg'
     save(ximg, out_path)
     back = load(out_path)
     assert back.shape == (176, 256, 256)
     assert back.attrs == JC_EG_ANAT_META
+    _check_dims_coords(back)
     # And again
     save(ximg, out_path)
     back = load(out_path)
     assert back.attrs == JC_EG_ANAT_META
+    _check_dims_coords(back)
     # With url
     back = load(f'file:///{out_path}')
     assert back.attrs == JC_EG_ANAT_META
+    _check_dims_coords(back)
 
 
 @pytest.mark.skipif(not find_spec('h5netcdf'),
@@ -352,6 +373,7 @@ def test_round_trip_netcdf(tmp_path):
     assert back.attrs == JC_EG_ANAT_META
     back = load(f'file:///{out_path}')
     assert back.attrs == JC_EG_ANAT_META
+    _check_dims_coords(back)
 
 
 def test_tornado(fserver):
@@ -376,6 +398,7 @@ def test_round_trip_netcdf_url(fserver):
     back = load(out_url)
     assert back.shape == (176, 256, 256)
     assert back.attrs == JC_EG_ANAT_META
+    _check_dims_coords(back)
 
 
 @skip_without_file(JC_EG_ANAT)
@@ -391,15 +414,18 @@ def test_matching_img_error(tmp_path):
     back = load(out_img)
     assert back.shape == (176, 256, 256)
     assert back.attrs == JC_EG_ANAT_META
+    _check_dims_coords(back)
     os.unlink(out_img)
     with pytest.raises(XibFileError, match='does not appear to exist'):
         load(out_img)
     shutil.copy2(JC_EG_ANAT, tmp_path)
     os.unlink(out_json)
     back = load(out_img)
+    _check_dims_coords(back)
     assert back.attrs == JC_EG_ANAT_META_RAW
     back = load_bids(out_img, require_json=False)
     assert back.attrs == JC_EG_ANAT_META_RAW
+    _check_dims_coords(back)
     with pytest.raises(XibFileError, match='`require_json` is True'):
         load_bids(out_img, require_json=True)
 

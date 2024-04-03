@@ -474,6 +474,10 @@ class FSFileHolder(FileHolder):
         self.fileobj.close()
 
 
+_NI_SPACE_DIMS = ('i', 'j', 'k')
+_NI_TIME_DIM = 'time'
+
+
 def _nibabel2img_meta(img_file):
     # Identify relevant files from img_file
     # Make file_map with opened files.
@@ -488,19 +492,27 @@ def _nibabel2img_meta(img_file):
 
 
 def _img_meta2ximg(img, meta, url_or_path):
-    coords = {}
-    if (TR := meta.get("RepetitionTime")):
-        time_coords = np.arange(0, (img.shape[-1]) * TR, TR)
-        coords = {
-            "time":
-            xr.DataArray(time_coords, dims=["time"], attrs={"units": "s"})}
     dataobj = FDataObj(img.dataobj)
-    return xr.DataArray(da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
-                        dims=["i", "j", "k", "time"][:dataobj.ndim],
-                        coords=coords,
-                        name=_url2name(url_or_path),
-                        # NB: zarr can't serialize numpy arrays as attrs
-                        attrs=meta)
+    coords = {}
+    dims = _NI_SPACE_DIMS
+    for ax_no, ax_name in enumerate(dims):
+        coords[ax_name] = xr.DataArray(
+            np.arange(img.shape[ax_no]),
+            dims=[ax_name])
+    if dataobj.ndim > 3 and (TR := meta.get("RepetitionTime")):
+        dims += (_NI_TIME_DIM,)
+        time_coords = np.arange(0, (img.shape[-1]) * TR, TR)
+        coords[_NI_TIME_DIM] = xr.DataArray(
+            time_coords,
+            dims=[_NI_TIME_DIM],
+            attrs={"units": "s"})
+    return xr.DataArray(
+        da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
+        dims=dims,
+        coords=coords,
+        name=_url2name(url_or_path),
+        # NB: zarr can't serialize numpy arrays as attrs
+        attrs=meta)
 
 
 def _url2name(url_or_path):
@@ -622,15 +634,11 @@ class Processors:
 PROCESSORS = Processors()
 
 
-_NI_SPACE_DIMS = ('i', 'j', 'k')
-_NI_SPACETIME_DIMS = _NI_SPACE_DIMS + ('time',)
-
-
-
 def _ni_sort_expand_dims(img_dims):
     # Allow for 3D images
-    target_dims = (_NI_SPACE_DIMS if set(img_dims).issubset(_NI_SPACE_DIMS)
-                   else _NI_SPACETIME_DIMS)
+    target_dims = _NI_SPACE_DIMS
+    if not set(img_dims).issubset(_NI_SPACE_DIMS):
+        target_dims += (_NI_TIME_DIM,)
     x_dims = []
     x_axes = []
     out_order = []
