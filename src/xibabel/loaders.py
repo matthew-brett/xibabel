@@ -14,6 +14,7 @@ import nibabel as nib
 from nibabel.spatialimages import HeaderDataError
 from nibabel.filename_parser import parse_filename
 from nibabel.fileholders import FileHolder
+from nibabel.affines import from_matvec, apply_affine
 
 import fsspec
 import xarray as xr
@@ -663,10 +664,11 @@ def to_nifti(ximg):
     # Reorient, expand missing dimensions
     order, dims, axes = _ni_sort_expand_dims(ximg.dims)
     ximg = ximg.transpose(*order).expand_dims(dims, axes)
+    # Adjust affines to current state of ximg.
+    back = ximg.xi.with_updated_affines()
     # Build header from attributes.
     hdr = _to_ni_header(ximg)
-    # Adjust affines.
-    return nib.Nifti1Image(ximg, None, hdr)
+    return nib.Nifti1Image(back, None, hdr)
 
 
 @xr.register_dataarray_accessor("xi")
@@ -675,10 +677,78 @@ class XiAccessor:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
 
-    @property
-    def affines(self):
-        aff_d = self._obj.meta.get('xib-affines', {})
+    def get_affines(self):
+        """ Get spatial affines from attributes of image
+
+        Returns
+        -------
+        affines : dict
+            Dictionary with key, value pairs where key is string giving space
+            to which affine maps, and values are 4x4 spatial affine arrays.
+
+        Notes
+        -----
+        Returned `affines` are copies; if you modify the arrays in `affines`,
+        this will not affect the original image.
+        """
+        aff_d = self._obj.attrs.get('xib-affines', {})
         return {space: np.array(aff) for space, aff in aff_d.items()}
 
     def to_bids(self):
         pass
+
+    def with_updated_affines(self):
+        """ Return image with affines, coordinates updated to match state.
+
+        Return image `adj_img` where the affines and coordinates correctly
+        reflect any detected slicing of the original image.
+
+        Returns
+        -------
+        adj_img : Xibabel image
+            Image with adjusted affines, and for which spatial coordinate
+            indices have been reset to sequential 0-based default.
+
+        Notes
+        -----
+        The affines and i, j, k coordinates reflect the state of the image as
+        of the last call to this function, or as of image load.
+
+        The affines are always 4x4, and always refer to i, j, k space,
+        regardless of dimension ordering, and of the presence of i, j, k
+        dimensions.
+        """
+        adj_img = self._obj.copy()
+        assert adj_img.attrs is not self._obj.attrs
+        out_affines = {}
+        for space, affine in self.get_affines().items():
+            out_affines[space] = self._adjusted_affine(affine, adj_img.coords)
+        adj_img.attrs['xib-affines'] = out_affines
+        return adj_img.xi._with_reset_coordinates()
+
+    def _adjusted_affine(self, affine, coords):
+        vox_origin = np.zeros(3)
+        vox_scalings = np.ones(3)
+        for i, name in enumerate(_NI_SPACE_DIMS):
+            vox_indices = np.atleast_1d(coords.get(name, 0))
+            vox_origin[i] = vox_indices[0]
+            if len(vox_indices) > 1:
+                vd = np.diff(vox_indices)
+                if any(vd[1:] != vd[0]):
+                    raise XibFormatError(
+                        'Cannot handle irregular voxel spacing for {name}')
+                vox_scalings[i] = vd[0]
+        return from_matvec(affine[:3, :3] * vox_scalings,
+                           apply_affine(affine, vox_origin))
+
+    def _with_reset_coordinates(self):
+        ximg = self._obj
+        coords = {}
+        for name in _NI_SPACE_DIMS:
+            if name not in ximg.dims:
+                coords[name] = xr.DataArray(0)
+                continue
+            coords[name] = xr.DataArray(
+                np.arange(ximg[name].shape[0]),
+                dims=[name])
+        return ximg.assign_coords(coords)
