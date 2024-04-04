@@ -694,9 +694,6 @@ class XiAccessor:
         aff_d = self._obj.attrs.get('xib-affines', {})
         return {space: np.array(aff) for space, aff in aff_d.items()}
 
-    def to_bids(self):
-        pass
-
     def with_updated_affines(self):
         """ Return image with affines, coordinates updated to match state.
 
