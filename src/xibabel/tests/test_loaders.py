@@ -295,6 +295,7 @@ def test_anat_loader():
          JC_EG_ANAT_JSON, str(JC_EG_ANAT_JSON))):
         ximg = loader(in_path)
         assert ximg.shape == (176, 256, 256)
+        assert ximg.dims == _NI_SPACE_DIMS
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
         assert ximg.attrs == JC_EG_ANAT_META
         _check_dims_coords(ximg)
@@ -374,6 +375,52 @@ def test_round_trip_netcdf(tmp_path):
     back = load(f'file:///{out_path}')
     assert back.attrs == JC_EG_ANAT_META
     _check_dims_coords(back)
+
+
+@skip_without_file(JC_EG_ANAT)
+@skip_without_file(JC_EG_FUNC)
+@pytest.mark.parametrize("img_path", [JC_EG_ANAT, JC_EG_FUNC])
+def test_affines(img_path):
+    ximg = load(img_path)
+    nib_img = nib.load(img_path)
+    affines = ximg.xi.get_affines()
+    assert list(affines) == ['scanner']
+    assert np.all(affines['scanner'] == nib_img.affine)
+    back = ximg.xi.with_updated_affines()
+    assert np.all(back.xi.get_affines()['scanner'] == nib_img.affine)
+    xT = ximg.T
+    sp_dims = _NI_SPACE_DIMS
+    assert xT.dims == ximg.dims[::-1]
+    transposed = xT.xi.with_updated_affines()
+    assert np.all(transposed.xi.get_affines()['scanner'] == nib_img.affine)
+    for i, (name, slice_no) in enumerate(zip(sp_dims, (42, 32, 10))):
+        ximg_plane = ximg.sel(**{name: slice_no})
+        assert ximg_plane.dims == tuple(d for d in ximg.dims if d != name)
+        assert tuple(ximg_plane.coords) == ximg.dims
+        adj_img = ximg_plane.xi.with_updated_affines()
+        new_origin = np.array([0, 0, 0, 1])
+        new_origin[i] = slice_no
+        new_affine = nib_img.affine.copy()
+        new_affine[:, 3] = nib_img.affine @ new_origin
+        assert np.all(adj_img.xi.get_affines()['scanner'] == new_affine)
+        # Check Nibabel slicer gives the same result.
+        slicers = [slice(None) for d in range(len(ximg.dims))]
+        slicers[i] = slice(slice_no, slice_no + 1)
+        assert np.all(nib_img.slicer[*slicers].affine == new_affine)
+    for i, (name, spacing) in enumerate(zip(sp_dims, (2, 3, 4))):
+        slicers = [slice(None) for d in range(len(ximg.dims))]
+        slicers[i] = slice(None, None, spacing)
+        ximg_sliced = ximg[*slicers]
+        assert ximg_sliced.dims == ximg.dims
+        assert tuple(ximg_sliced.coords) == ximg.dims
+        adj_img = ximg_sliced.xi.with_updated_affines()
+        new_affine = nib_img.affine.copy()
+        scalers = np.ones(3)
+        scalers[i] = spacing
+        new_affine[:3, :3] = nib_img.affine[:3, :3] @ np.diag(scalers)
+        assert np.all(adj_img.xi.get_affines()['scanner'] == new_affine)
+        # Check Nibabel slicer gives the same result.
+        assert np.all(nib_img.slicer[*slicers].affine == new_affine)
 
 
 def test_tornado(fserver):
@@ -457,20 +504,20 @@ def test_ni_sort_expand_dims():
 
 @skip_without_file(JC_EG_ANAT)
 @skip_without_file(JC_EG_FUNC)
-def test_to_nifti():
-    for pth in (JC_EG_ANAT, JC_EG_FUNC):
-        orig_img = nib.load(JC_EG_ANAT)
-        orig_data = orig_img.get_fdata()
-        ximg = load(JC_EG_ANAT)
-        # Check data is the same for basic load.
-        assert np.all(ximg == orig_data)
-        # Basic conversion.
-        img = to_nifti(ximg)
-        assert np.all(img.get_fdata() == orig_data)
-        # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
-        img = to_nifti(ximg.T)
-        assert np.all(img.get_fdata() == orig_data)
-        # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
-        img = to_nifti(ximg.T.sel(k=32))  # Drop k axis
-        assert np.all(img.get_fdata() == orig_data[:, :, 32:33])
-        # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+@pytest.mark.parametrize("img_path", [JC_EG_ANAT, JC_EG_FUNC])
+def test_to_nifti(img_path):
+    orig_img = nib.load(img_path)
+    orig_data = orig_img.get_fdata()
+    ximg = load(img_path)
+    # Check data is the same for basic load.
+    assert np.all(ximg == orig_data)
+    # Basic conversion.
+    img = to_nifti(ximg)
+    assert np.all(img.get_fdata() == orig_data)
+    # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+    img = to_nifti(ximg.T)
+    assert np.all(img.get_fdata() == orig_data)
+    # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+    img = to_nifti(ximg.T.sel(k=32))  # Drop k axis
+    assert np.all(img.get_fdata() == orig_data[:, :, 32:33])
+    # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
