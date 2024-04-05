@@ -32,6 +32,9 @@ jobs:
         with:
           python-version: ${{ matrix.python_version }}
           allow-prereleases: true
+      - name: Install minimum
+        run: |
+          pip install -e .
       - name: Import
         run: |
           python src/xibabel/tests/test_loaders.py
