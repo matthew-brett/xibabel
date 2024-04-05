@@ -272,6 +272,8 @@ if fetcher.have_file(JC_EG_FUNC):
          {'scanner': img.affine.tolist()}
     }
     JC_EG_FUNC_META.update(JC_EG_FUNC_META_RAW)
+else:  # For parametrized tests.
+    JC_EG_FUNC_META_RAW = {}
 
 
 if fetcher.have_file(JC_EG_ANAT):
@@ -285,6 +287,9 @@ if fetcher.have_file(JC_EG_ANAT):
          {'scanner': img.affine.tolist()}
     }
     JC_EG_ANAT_META.update(JC_EG_ANAT_META_RAW)
+else:  # For parametrized tests.
+    JC_EG_ANAT_META_RAW = {}
+
 
 
 @skip_without_file(JC_EG_ANAT)
