@@ -16,9 +16,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  XIB_DATA_PATH: ~/.xibabel/data
-
 jobs:
   test:
     strategy:
@@ -35,6 +32,7 @@ jobs:
       - name: Install minimum
         run: |
           pip install -e .
+          pip install pytest
       - name: Import
         run: |
           python src/xibabel/tests/test_loaders.py
