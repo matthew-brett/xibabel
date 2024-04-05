@@ -6,7 +6,7 @@ from copy import deepcopy
 import os
 from importlib.util import find_spec
 import gzip
-from itertools import product
+from itertools import product, permutations
 import json
 import shutil
 
@@ -422,6 +422,14 @@ def test_affines(img_path):
         assert np.all(adj_img.xi.get_affines()['scanner'] == new_affine)
         # Check Nibabel slicer gives the same result.
         assert np.all(nib_img.slicer[*slicers].affine == new_affine)
+    # Some more complex slicings, benchmark against nibabel
+    for slicers in permutations([slice(10, 20, 2),
+                                 slice(30, 15, -1),
+                                 slice(5, 16, 3)]):
+        sliced_ximg = ximg[*slicers].xi.with_updated_affines()
+        sliced_nib_img = nib_img.slicer[*slicers]
+        assert np.all(sliced_ximg.xi.get_affines()['scanner'] ==
+                    sliced_nib_img.affine)
 
 
 def test_tornado(fserver):
