@@ -2,6 +2,7 @@
 """
 
 from pathlib import Path
+from copy import deepcopy
 import os
 from importlib.util import find_spec
 import gzip
@@ -23,7 +24,7 @@ from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
-                             fetcher)
+                             fetcher, arr_dict_allclose)
 
 import pytest
 
@@ -504,8 +505,10 @@ def test_ni_sort_expand_dims():
 
 @skip_without_file(JC_EG_ANAT)
 @skip_without_file(JC_EG_FUNC)
-@pytest.mark.parametrize("img_path", [JC_EG_ANAT, JC_EG_FUNC])
-def test_to_nifti(img_path):
+@pytest.mark.parametrize("img_path, meta_raw",
+                         ((JC_EG_ANAT, JC_EG_ANAT_META_RAW),
+                          (JC_EG_FUNC, JC_EG_FUNC_META_RAW)))
+def test_to_nifti(img_path, meta_raw):
     orig_img = nib.load(img_path)
     orig_data = orig_img.get_fdata()
     ximg = load(img_path)
@@ -514,10 +517,14 @@ def test_to_nifti(img_path):
     # Basic conversion.
     img = to_nifti(ximg)
     assert np.all(img.get_fdata() == orig_data)
-    # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+    assert arr_dict_allclose(hdr2meta(img.header), meta_raw)
     img = to_nifti(ximg.T)
     assert np.all(img.get_fdata() == orig_data)
-    # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+    assert arr_dict_allclose(hdr2meta(img.header), meta_raw)
     img = to_nifti(ximg.T.sel(k=32))  # Drop k axis
     assert np.all(img.get_fdata() == orig_data[:, :, 32:33])
-    # assert wrap_header(img.header).to_meta() == JC_EG_ANAT_META_RAW
+    # This changes the origin of the affine.
+    new_affine = orig_img.slicer[:, :, 32:33].affine
+    exp_meta_32 = deepcopy(meta_raw)
+    exp_meta_32['xib-affines']['scanner'] = new_affine
+    assert arr_dict_allclose(hdr2meta(img.header), exp_meta_32)

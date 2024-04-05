@@ -85,11 +85,13 @@ class FDataObj:
         return sizes
 
 
-dim_recoder = {
+dimno2name= {
     None: None,
     0: 'i',
     1: 'j',
     2: 'k'}
+
+dimname2no = {v: k for k, v in dimno2name.items()}
 
 
 time_unit_scaler = {
@@ -105,9 +107,9 @@ class NiHeader2Meta:
 
     def get_dim_labels(self):
         freq_dim, phase_dim, slice_dim = self.header.get_dim_info()
-        return {'xib-FrequencyEncodingDirection': dim_recoder[freq_dim],
-                'PhaseEncodingDirection': dim_recoder[phase_dim],
-                'SliceEncodingDirection': dim_recoder[slice_dim]}
+        return {'xib-FrequencyEncodingDirection': dimno2name[freq_dim],
+                'PhaseEncodingDirection': dimno2name[phase_dim],
+                'SliceEncodingDirection': dimno2name[slice_dim]}
 
     def get_slice_timing(self):
         hdr = self.header
@@ -155,6 +157,65 @@ class NiHeader2Meta:
         meta['RepetitionTime'] = self.get_repetition_time()
         meta['xib-affines'] = self.get_affines()
         return {k: v for k, v in meta.items() if v is not None}
+
+
+class Meta2NiHeader:
+    """ Class writes BIDS attribute dictionary into NIfTI header.
+    """
+
+    def __init__(self, header=None, meta=None):
+        self.header = nib.Nifti1Header.from_header(header)
+        self.meta = {} if meta is None else meta.copy()
+
+    def set_dim_labels(self):
+        # Assume canonical axis order.
+        d = self.meta
+        self.header.set_dim_info(
+            freq=dimname2no.get(d.get('xib-FrequencyEncodingDirection')),
+            phase=dimname2no.get(d.get('PhaseEncodingDirection')),
+            slice=dimname2no.get(d.get('SliceEncodingDirection')))
+
+    def set_slice_timing(self):
+        slice_times = self.meta.get('SliceTiming')
+        if slice_times is None:
+            return
+        try:
+            return self.header.set_slice_times(slice_times)
+        except HeaderDataError:
+            pass
+
+    def set_repetition_time(self):
+        hdr = self.header
+        zooms = np.array(hdr.get_zooms())
+        # Assume header record of image already has correct shape.
+        if len(zooms) < 4:
+            return
+        TR = self.meta.get('RepetitionTime')
+        TR, units = (0, None) if TR is None else (TR, 'sec')
+        zooms[3] = TR
+        hdr.set_xyzt_units(t=units)
+        hdr.set_zooms(zooms)
+
+    def set_affines(self):
+        """ Set valid affines to header.
+        """
+        hdr = self.header
+        affines = self.meta.get('xib-affines', {})
+        for code in ('aligned', 'scanner'):
+            if code in affines:
+                hdr.set_qform(affines[code], code)
+                break
+        for code in ('mni', 'talairach', 'template'):
+            if code in affines:
+                hdr.set_sform(affines[code], code)
+                break
+
+    def updated_header(self):
+        self.set_dim_labels()
+        self.set_slice_timing()
+        self.set_affines()
+        self.set_repetition_time()
+        return self.header
 
 
 def hdr2meta(header):
@@ -656,18 +717,17 @@ def _ni_sort_expand_dims(img_dims):
             x_axes)
 
 
-def _to_ni_header(ximg):
-    return None
-
-
 def to_nifti(ximg):
     # Reorient, expand missing dimensions
     order, dims, axes = _ni_sort_expand_dims(ximg.dims)
     ximg = ximg.transpose(*order).expand_dims(dims, axes)
     # Adjust affines to current state of ximg.
     back = ximg.xi.with_updated_affines()
+    # Build preliminary header.
+    hdr = nib.Nifti1Header()
+    hdr.set_data_shape(back.shape)
     # Build header from attributes.
-    hdr = _to_ni_header(ximg)
+    hdr = Meta2NiHeader(hdr, back.attrs).updated_header()
     return nib.Nifti1Image(back, None, hdr)
 
 
