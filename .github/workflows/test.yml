@@ -34,7 +34,7 @@ jobs:
           allow-prereleases: true
       - name: Install
         run: |
-          pip install -e .
+          pip install -e '.[test]'
       - name: Tests
         run: |
-          pytest -v -v --doctest-plus src/xibabel
+          pytest -v -v src/xibabel
