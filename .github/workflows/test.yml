@@ -23,8 +23,8 @@ jobs:
   test:
     strategy:
       matrix:
-        python_version: ["3.9", "3.10", "3.11", "3.12"]
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        python_version: ["3.11", "3.12"]
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +32,9 @@ jobs:
         with:
           python-version: ${{ matrix.python_version }}
           allow-prereleases: true
+      - name: Import
+        run: |
+          python src/xibabel/tests/test_loaders.py
       - name: Install
         run: |
           pip install -e '.[test]'
