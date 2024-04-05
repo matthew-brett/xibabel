@@ -727,7 +727,7 @@ class XiAccessor:
         vox_origin = np.zeros(3)
         vox_scalings = np.ones(3)
         for i, name in enumerate(_NI_SPACE_DIMS):
-            vox_indices = np.atleast_1d(coords.get(name, 0))
+            vox_indices = np.ravel(coords.get(name, 0))
             vox_origin[i] = vox_indices[0]
             if len(vox_indices) > 1:
                 vd = np.diff(vox_indices)
