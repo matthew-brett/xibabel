@@ -84,3 +84,9 @@ pip install git+https://github.com/matthew-brett/xibabel@main
 ## License
 
 We release Xibabel under a BSD simplified 2-clause license (see `LICENSE`).
+
+## Acknowledgments
+
+This work was entirely supported by Chan Zuckerberg Initiative Essential Open
+Source Software for Science grant "Strengthening community and code foundations
+for brain imaging", with thanks.
