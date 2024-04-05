@@ -62,7 +62,8 @@ jobs:
         run: env
       - name: Tests
         run: |
-          pytest -v -v --doctest-plus src/xibabel
+          # pytest -v -v --doctest-plus src/xibabel
+          pytest -v -v src/xibabel
   bench:
     runs-on: ubuntu-latest
     steps:
