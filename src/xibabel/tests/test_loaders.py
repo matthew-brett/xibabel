@@ -416,7 +416,8 @@ def test_affines(img_path):
     for i, (name, spacing) in enumerate(zip(sp_dims, (2, 3, 4))):
         slicers = [slice(None) for d in range(len(ximg.dims))]
         slicers[i] = slice(None, None, spacing)
-        ximg_sliced = ximg[*slicers]
+        my_var = slicers  # Debug
+        ximg_sliced = ximg[ *my_var ]
         assert ximg_sliced.dims == ximg.dims
         assert tuple(ximg_sliced.coords) == ximg.dims
         adj_img = ximg_sliced.xi.with_updated_affines()
