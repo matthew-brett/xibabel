@@ -49,9 +49,9 @@ See the example notebooks in the `experiments` directory for more.
   image. We can load these attributes from
   [BIDS](https://bids.neuroimaging.io/) format JSON files. This allows better
   transmission of metadata.
-- The Xarrays have a Dask backend, to computations can be deferred and run at
+- The Xarrays have a Dask backend, so computations can be deferred and run at
   the point at which you need the data in memory.
-- Xarrays and Dask allow new storage formats, including storage in
+- Xarrays and Dask allow new storage formats, including storage as
   [Zarr](https://zarr.readthedocs.io) and
   HDF5 / [netCDF](https://en.wikipedia.org/wiki/NetCDF).
 - You can optimize the on-disk format for memory and CPU by adjusting
