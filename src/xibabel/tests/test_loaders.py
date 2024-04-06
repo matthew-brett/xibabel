@@ -411,11 +411,11 @@ def test_affines(img_path):
         # Check Nibabel slicer gives the same result.
         slicers = [slice(None) for d in range(len(ximg.dims))]
         slicers[i] = slice(slice_no, slice_no + 1)
-        assert np.all(nib_img.slicer[*slicers].affine == new_affine)
+        assert np.all(nib_img.slicer[tuple(slicers)].affine == new_affine)
     for i, (name, spacing) in enumerate(zip(sp_dims, (2, 3, 4))):
         slicers = [slice(None) for d in range(len(ximg.dims))]
         slicers[i] = slice(None, None, spacing)
-        ximg_sliced = ximg[*slicers]
+        ximg_sliced = ximg[tuple(slicers)]
         assert ximg_sliced.dims == ximg.dims
         assert tuple(ximg_sliced.coords) == ximg.dims
         adj_img = ximg_sliced.xi.with_updated_affines()
@@ -425,13 +425,13 @@ def test_affines(img_path):
         new_affine[:3, :3] = nib_img.affine[:3, :3] @ np.diag(scalers)
         assert np.all(adj_img.xi.get_affines()['scanner'] == new_affine)
         # Check Nibabel slicer gives the same result.
-        assert np.all(nib_img.slicer[*slicers].affine == new_affine)
+        assert np.all(nib_img.slicer[tuple(slicers)].affine == new_affine)
     # Some more complex slicings, benchmark against nibabel
     for slicers in permutations([slice(10, 20, 2),
                                  slice(30, 15, -1),
                                  slice(5, 16, 3)]):
-        sliced_ximg = ximg[*slicers].xi.with_updated_affines()
-        sliced_nib_img = nib_img.slicer[*slicers]
+        sliced_ximg = ximg[tuple(slicers)].xi.with_updated_affines()
+        sliced_nib_img = nib_img.slicer[tuple(slicers)]
         assert np.all(sliced_ximg.xi.get_affines()['scanner'] ==
                     sliced_nib_img.affine)
 
