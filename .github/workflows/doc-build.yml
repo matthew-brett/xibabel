@@ -29,7 +29,7 @@ jobs:
         uses: datalad/datalad-action/install@main
       - name: Install
         run: |
-          pip install -e '.[docs,developer]'
+          pip install -e '.[docs,developer,optional]'
       - name: Show environment
         run: env
       - name: Build documentation
