@@ -273,6 +273,7 @@ if fetcher.have_file(JC_EG_FUNC):
     }
     JC_EG_FUNC_META.update(JC_EG_FUNC_META_RAW)
 else:  # For parametrized tests.
+    JC_EG_FUNC_META = {}
     JC_EG_FUNC_META_RAW = {}
 
 
@@ -288,6 +289,7 @@ if fetcher.have_file(JC_EG_ANAT):
     }
     JC_EG_ANAT_META.update(JC_EG_ANAT_META_RAW)
 else:  # For parametrized tests.
+    JC_EG_ANAT_META = {}
     JC_EG_ANAT_META_RAW = {}
 
 
