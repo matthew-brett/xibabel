@@ -3,7 +3,7 @@ name: Test
 on:
   push:
     branches:
-      - main
+      - debug-test
   pull_request:
     branches:
       - main
@@ -31,6 +31,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Test compile initial
+        run: |
+          python example.py
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python_version }}
@@ -51,6 +54,9 @@ jobs:
       - name: Install
         run: |
           pip install -e '.[test,developer,optional]'
+      - name: Test compile
+        run: |
+          python src/xibabel/tests/test_loaders.py
       - name: Cache Dataset
         uses: actions/cache@v4
         with:
