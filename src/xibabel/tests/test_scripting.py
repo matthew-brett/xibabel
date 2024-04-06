@@ -11,9 +11,7 @@ import nibabel as nib
 import xibabel as xib
 
 from xibabel import testing
-
-# For constructing the design.
-from nipy.modalities.fmri.design import block_design, natural_spline
+from xibabel.tests.markers import nipy_test
 
 import pytest
 
@@ -27,9 +25,13 @@ bold_path = img_path_root.with_name(img_path_root.name + 'bold.nii.gz')
 tsv_path = img_path_root.with_name(img_path_root.name + 'events.tsv')
 
 
+@nipy_test
 @pytest.mark.skipif(not bold_path.is_file(), reason=f'Missing "{bold_path}"')
 @pytest.mark.skipif(not tsv_path.is_file(), reason=f'Missing "{tsv_path}"')
 def test_glm():
+
+    # For constructing the design.
+    from nipy.modalities.fmri.design import block_design, natural_spline
 
     # Load the events ready to make a design.
     event_df = pd.read_csv(tsv_path, sep='\t')

@@ -19,7 +19,6 @@ dependencies = [
     'xarray',
     'dask',
     'nibabel',
-    'nipy',
     'psutil'
 ]
 
@@ -51,6 +50,7 @@ test = [
     'aiohttp',
 ]
 optional = [
+    'nipy',
     'h5netcdf',
     'matplotlib',
     'requests',

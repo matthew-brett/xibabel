@@ -4,7 +4,6 @@
 from pathlib import Path
 from copy import deepcopy
 import os
-from importlib.util import find_spec
 import gzip
 from itertools import product, permutations
 import json
@@ -25,6 +24,7 @@ from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
                              fetcher, arr_dict_allclose)
+from xibabel.tests.markers import h5netcdf_test
 
 import pytest
 
@@ -368,8 +368,7 @@ def test_round_trip(tmp_path):
     _check_dims_coords(back)
 
 
-@pytest.mark.skipif(not find_spec('h5netcdf'),
-                    reason='Need h5netcdf module for test')
+@h5netcdf_test
 @skip_without_file(JC_EG_ANAT)
 def test_round_trip_netcdf(tmp_path):
     ximg = load(JC_EG_ANAT)
@@ -449,8 +448,7 @@ def test_tornado(fserver):
     assert fserver.read_bytes('binary_file') == b'binary'
 
 
-@pytest.mark.skipif(not find_spec('h5netcdf'),
-                    reason='Need h5netcdf module for test')
+@h5netcdf_test
 @skip_without_file(JC_EG_ANAT)
 def test_round_trip_netcdf_url(fserver):
     ximg = load(JC_EG_ANAT)
