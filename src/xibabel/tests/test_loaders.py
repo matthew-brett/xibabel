@@ -526,16 +526,43 @@ def test_to_nifti(img_path, meta_raw):
     # Check data is the same for basic load.
     assert np.all(ximg == orig_data)
     # Basic conversion.
-    img = to_nifti(ximg)
+    img, attrs = to_nifti(ximg)
     assert np.all(img.get_fdata() == orig_data)
     assert arr_dict_allclose(hdr2meta(img.header), meta_raw)
-    img = to_nifti(ximg.T)
+    img, attrs = to_nifti(ximg.T)
     assert np.all(img.get_fdata() == orig_data)
     assert arr_dict_allclose(hdr2meta(img.header), meta_raw)
-    img = to_nifti(ximg.T.sel(k=32))  # Drop k axis
+    img, attrs = to_nifti(ximg.T.sel(k=32))  # Drop k axis
     assert np.all(img.get_fdata() == orig_data[:, :, 32:33])
     # This changes the origin of the affine.
     new_affine = orig_img.slicer[:, :, 32:33].affine
     exp_meta_32 = deepcopy(meta_raw)
     exp_meta_32['xib-affines']['scanner'] = new_affine
     assert arr_dict_allclose(hdr2meta(img.header), exp_meta_32)
+
+
+@skip_without_file(JC_EG_ANAT)
+@skip_without_file(JC_EG_FUNC)
+@pytest.mark.parametrize("img_path, meta",
+                         ((JC_EG_ANAT, JC_EG_ANAT_META),
+                          (JC_EG_FUNC, JC_EG_FUNC_META)))
+def test_to_bids(img_path, meta, tmp_path):
+    nib_img = nib.load(img_path)
+    fdata = nib_img.get_fdata()
+    ximg = load(img_path)
+    out_fname = tmp_path / 'out.json'
+    save(ximg, out_fname)
+    back_nib = nib.load(tmp_path / 'out.nii.gz')
+    assert np.allclose(back_nib.get_fdata(), fdata)
+    with open(out_fname, 'rt') as fobj:
+        back_attrs = _json_attrs2attrs(json.load(fobj))
+    assert arr_dict_allclose(back_attrs, meta)
+    assert arr_dict_allclose(load(out_fname).attrs, ximg.attrs)
+    out_fname = tmp_path / 'out2.nii'
+    save(ximg, out_fname)
+    back_nib = nib.load(out_fname)
+    assert np.allclose(back_nib.get_fdata(), fdata)
+    with open(tmp_path / 'out2.json', 'rt') as fobj:
+        back_attrs = _json_attrs2attrs(json.load(fobj))
+    assert arr_dict_allclose(back_attrs, meta)
+    assert arr_dict_allclose(load(out_fname).attrs, ximg.attrs)

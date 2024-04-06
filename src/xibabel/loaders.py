@@ -1,6 +1,7 @@
 """ Load various data formats into xibabel images
 """
 
+from functools import partial
 from pathlib import Path
 import json
 import logging
@@ -284,12 +285,23 @@ def _1d_arrayable(v):
     return arr.ndim < 2
 
 
+class NPEncoder(json.JSONEncoder):
+
+    def default(self, obj):
+        if hasattr(obj, 'tolist'):
+            return obj.tolist()
+        return super().default(self, obj)
+
+
+_jdumps = partial(json.dumps, cls=NPEncoder)
+
+
 def _attrs2json_attrs(attrs):
     out = {}
     for key, value in attrs.items():
         if (isinstance(value, dict) or
             (isinstance(value, (list, tuple)) and not _1d_arrayable(value))):
-            value = [_JSON_MARKER, json.dumps(value)]
+            value = [_JSON_MARKER, _jdumps(value)]
         out[key] = value
     return out
 
@@ -486,7 +498,7 @@ def load_bids(url_or_path, *, require_json=True, **kwargs):
     img, meta = _nibabel2img_meta(img_file)
     if sidecar_file:
         with sidecar_file as fobj:
-            meta.update(json.load(fobj))
+            meta.update(_json_attrs2attrs(json.load(fobj)))
     return _img_meta2ximg(img, meta, url_or_path)
 
 
@@ -603,12 +615,10 @@ def save(obj, url_or_path, format=None, **kwargs):
     """
     if format is None:
         format = PROCESSORS.guess_format(url_or_path)
-    if format is None:
-        raise XibFormatError(f"Could not guess format from {url_or_path}")
     return PROCESSORS.get_saver(format)(obj, url_or_path, **kwargs)
 
 
-def save_zarr(obj, file_path, **kwargs):
+def save_zarr(obj, url_or_path, **kwargs):
     r""" Save Xibabel image at `url_or_path` in Zarr / Xibabel format.
 
     Parameters
@@ -621,10 +631,10 @@ def save_zarr(obj, file_path, **kwargs):
     -------
     zbe : ZarrBackendStore
     """
-    return obj.to_zarr(file_path, mode='w', **kwargs)
+    return obj.to_zarr(url_or_path, mode='w', **kwargs)
 
 
-def save_netcdf(obj, file_path, **kwargs):
+def save_netcdf(obj, url_or_path, **kwargs):
     r""" Save Xibabel image at `url_or_path` in netCDF / Xibabel format.
 
     Parameters
@@ -640,7 +650,47 @@ def save_netcdf(obj, file_path, **kwargs):
     _check_netcdf()
     out = obj.copy()  # Shallow copy by default.
     out.attrs = _attrs2json_attrs(out.attrs)
-    return out.to_netcdf(file_path, engine='h5netcdf', **kwargs)
+    return out.to_netcdf(url_or_path, engine='h5netcdf', **kwargs)
+
+
+def save_bids(obj, url_or_path, **kwargs):
+    r""" Save Xibabel image at `url_or_path` as NIfTI / BIDS JSON
+
+    Parameters
+    ----------
+    url_or_path : str or Path
+    \*\*kwargs : dict
+        Any remaining named arguments passed to `fsspec.open`.
+
+    Returns
+    -------
+    None
+    """
+    nib_img, attrs = to_nifti(obj)
+    attrs = _attrs2json_attrs(attrs)
+    if str(url_or_path).endswith('.json'):
+        json_uop = url_or_path
+        img_uop = replace_suffix(url_or_path, '.json', '.nii.gz')
+    else:
+        img_uop = url_or_path
+        json_uop = replace_suffix(
+            drop_suffix(url_or_path, _comp_exts()),
+            (),
+            '.json')
+    sidecar_file, img_file = fsspec.open_files((json_uop, img_uop),
+                                               mode='wt',
+                                               compression='infer',
+                                               **kwargs)
+    with sidecar_file as f:
+        f.write(_jdumps(attrs))
+    if 'local' in img_file.fs.protocol:
+        nib.save(nib_img, img_file.path)
+        return
+    # Not local - use stream interface.
+    img_klass = _path2class(img_uop.full_name)
+    # We are passing out opened fsspec files.
+    with img_uop as fh:
+        img_klass.to_file_map({'image': fh})
 
 
 class Processors:
@@ -654,10 +704,10 @@ class Processors:
                      saver=save_netcdf),
         'bids': dict(exts=('json',),
                      loader=load_bids,
-                     saver=None),
+                     saver=save_bids),
         'nibabel': dict(exts=(),  # Defer to Nibabel for extensions
                      loader=load_nibabel,
-                     saver=None),
+                     saver=save_bids),
     }
 
     def __init__(self):
@@ -728,7 +778,7 @@ def to_nifti(ximg):
     hdr.set_data_shape(back.shape)
     # Build header from attributes.
     hdr = Meta2NiHeader(hdr, back.attrs).updated_header()
-    return nib.Nifti1Image(back, None, hdr)
+    return nib.Nifti1Image(back, None, hdr), back.attrs
 
 
 @xr.register_dataarray_accessor("xi")
