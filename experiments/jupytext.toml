@@ -1,3 +1,0 @@
-# https://jupytext.readthedocs.io/en/latest/config.html
-# Pair ipynb notebooks to Rmd text notebooks
-formats = "ipynb,Rmd"
