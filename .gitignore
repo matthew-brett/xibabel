@@ -7,5 +7,7 @@ __pycache__/
 *.ipynb
 tmp/
 .coverage*
+coverage.xml
+.pytest_cache/
 dist/
 site/
