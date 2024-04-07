@@ -66,7 +66,12 @@ See [Xibabel documentation](https://matthew-brett.github.io/xibabel) for more.
 
 ## Status
 
-Xibabel is in development mode at the moment. We are still experimenting with the API. We'd love to hear from you if you are interested to help. Please do not rely on any particular features in this alpha version, including compatibility of file formats; prefer
+Xibabel is in development mode at the moment. We are still experimenting with
+the API. We'd love to hear from you if you are interested to help. Please do
+not rely on any particular features in this alpha version, including
+compatibility of file formats; prefer to save outputs as BIDS / NIfTI format,
+for which we do guarantee input compatibility (e.g. `xib.save(ximg,
+'out.nii.gz'`).
 
 ## Install
 
