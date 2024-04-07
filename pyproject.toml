@@ -35,8 +35,9 @@ developer = [
     'zarr'
 ]
 docs = [
-    'sphinx>=7.0',
     'numpydoc>=1.6.0',
+    'mkdocs-jupyter',
+    'mkdocs-gitbook',
     'matplotlib',
     'ipython',
     'jupytext',

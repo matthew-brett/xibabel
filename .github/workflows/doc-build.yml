@@ -34,14 +34,5 @@ jobs:
         run: env
       - name: Build documentation
         run: |
-          cd doc
-          make html
-      - name: Run documentation doctests
-        run: |
-          cd doc
-          make clean
-          make doctest
-      - name: Check experiment notebooks
-        run: |
-          python -m ipykernel install --user --name xibabel
-          jupytext --execute experiments/*.Rmd
+          python -m ipykernel install --name kernel_name xibabel
+          make docs

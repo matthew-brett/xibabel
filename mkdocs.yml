@@ -1,0 +1,11 @@
+site_name: Xibabel documentation
+nav:
+  - Home: index.md
+  - Notebook page: basic_xibabel.ipynb
+  - Notebook page: glm_with_xibabel.ipynb
+  - Notebook page: slice_timing.ipynb
+  - Notebook page: xi_accessor.ipynb
+theme:
+  name: gitbook
+plugins:
+  - mkdocs-jupyter
