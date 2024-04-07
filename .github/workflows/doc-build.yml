@@ -34,5 +34,5 @@ jobs:
         run: env
       - name: Build documentation
         run: |
-          python -m ipykernel install --name kernel_name xibabel
+          python -m ipykernel install --user --name xibabel
           make docs
