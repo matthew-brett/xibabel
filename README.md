@@ -71,7 +71,7 @@ the API. We'd love to hear from you if you are interested to help. Please do
 not rely on any particular features in this alpha version, including
 compatibility of file formats; prefer to save outputs as BIDS / NIfTI format,
 for which we do guarantee input compatibility (e.g. `xib.save(ximg,
-'out.nii.gz'`).
+'out.nii.gz')`).
 
 ## Install
 
