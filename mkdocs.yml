@@ -9,3 +9,6 @@ theme:
   name: gitbook
 plugins:
   - mkdocs-jupyter
+  - exclude:
+      glob:
+        - "out*"

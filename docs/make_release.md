@@ -23,3 +23,9 @@ Upload to PyPI:
 ```python
 twine upload dist/xibabel*.tar.gz
 ```
+
+## Documentation
+
+```{python}
+make gh-pages
+```

@@ -38,6 +38,7 @@ docs = [
     'numpydoc>=1.6.0',
     'mkdocs-jupyter',
     'mkdocs-gitbook',
+    'mkdocs-exclude',
     'matplotlib',
     'ipython',
     'jupytext',
