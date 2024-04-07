@@ -58,9 +58,9 @@ See [Xibabel documentation](https://matthew-brett.github.io/xibabel) for more.
 - You can optimize the on-disk format for memory and CPU by adjusting
   _chunking_. We are working on performance metrics for different processing
   steps.
-- Xibabel uses [fsspec](https://filesystem-spec.readthedocs.io) for reading
+- Xibabel uses [`fsspec`](https://filesystem-spec.readthedocs.io) for reading
   NIfTI and other files, allowing you to use many filesystems as the source for
-  your data, including HTTP, Amazon, Google Cloud and others. See the FSSpec
+  your data, including HTTP, Amazon, Google Cloud and others. See the `fsspec`
   documentation for details, and the code above for an example using HTTP as
   a backing store.
 
