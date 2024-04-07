@@ -35,7 +35,7 @@ mean_img = ximg.mean('time')
 plt.imshow(mean_img.sel(k=32))
 ```
 
-See the example notebooks in the `experiments` directory for more.
+See [Xibabel documentation](https://matthew-brett.github.io/xibabel) for more.
 
 ## Features
 
@@ -43,8 +43,9 @@ See the example notebooks in the `experiments` directory for more.
   axes, with default labels for spatial axes of `i`, `j` and `k`; time is
   `time`. The labels allow slicing operations such as selecting slices over
   time.
-- The labels allow concise and readable operations on named axes. See the
-  `glm_in_xibabel` notebook in the `experiments` directory.
+- The labels allow concise and readable operations on named axes.
+  See the [glm_in_xibabel
+  notebook](https://matthew-brett.github.io/xibabel/glm_with_xibabel) for an example.
 - Xarrays have attributes that can be attached to the image or the axes of the
   image. We can load these attributes from
   [BIDS](https://bids.neuroimaging.io/) format JSON files. This allows better
