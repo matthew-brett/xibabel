@@ -20,7 +20,7 @@ python -m build --sdist
 
 Upload to PyPI:
 
-```python
+```bash
 twine upload dist/xibabel*.tar.gz
 ```
 

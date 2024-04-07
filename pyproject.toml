@@ -22,6 +22,11 @@ dependencies = [
     'psutil'
 ]
 
+[project.urls]
+Homepage = "https://github.com/matthew-brett/xibabel"
+"Source Code" = "https://github.com/matthew-brett/xibabel"
+Documentation = "https://matthew-brett.github.io/xibabel"
+
 [project.scripts]
 xib-get-test-set = "xibabel.testing.__main__:main"
 
