@@ -1,0 +1,34 @@
+# The Xi accessor
+
+This is the `xi` accessor, with which we can add behavior to all DataArrays, including Xibabel images.
+
+```{python}
+import numpy as np
+import pandas as pd
+
+import xarray as xr
+
+import nibabel as nib
+import xibabel as xib
+
+# For test images.
+from xibabel import testing
+```
+
+Make sure we have the minimal test data.
+
+```{python}
+# Get the data
+testing.get_set('minimal')
+```
+
+```{python}
+ximg = xib.load(testing.JC_EG_ANAT)
+ximg
+```
+
+The `xi` accessor:
+
+```{python}
+ximg.xi.get_affines()
+```

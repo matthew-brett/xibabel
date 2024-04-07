@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+<title>Making a release - Xibabel documentation</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+<meta name="generator" content="mkdocs-1.5.3, mkdocs-gitbook-1.0.7">
+
+<link rel="shortcut icon" href="../images/favicon.ico" type="image/x-icon">
+<meta name="HandheldFriendly" content="true"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta rel="next" href="" />
+<link href="../css/style.min.css" rel="stylesheet"> 
+</head>
+
+<body>
+<div class="book">
+<div class="book-summary">
+
+<nav role="navigation">
+<ul class="summary">
+<li>
+<a href=".." target="_blank" class="custom-link">Xibabel documentation</a>
+</li>
+<li class="divider"></li>
+<li class="chapter" data-path="">
+<a href="..">Home</a>
+<li class="chapter" data-path="basic_xibabel/">
+<a href="../basic_xibabel/">Basic read and slice with Xibabel</a>
+<li class="chapter" data-path="glm_with_xibabel/">
+<a href="../glm_with_xibabel/">General linear model with Xibabel</a>
+<li class="chapter" data-path="slice_timing/">
+<a href="../slice_timing/">Slice-timing correction</a>
+<li class="chapter" data-path="xi_accessor/">
+<a href="../xi_accessor/">The Xi accessor</a>
+<li class="divider"></li>
+
+
+
+<li><a href="http://www.mkdocs.org">
+Published with MkDocs
+</a></li>
+
+<li><a href="https://github.com/GitbookIO/theme-default">
+Theme by GitBook
+</a></li>
+</ul>
+
+</nav>
+
+</div> <!-- end of book-summary -->
+
+<div class="book-body">
+<div class="body-inner">
+<div class="book-header" role="navigation">
+
+<!-- Title -->
+<h1>
+<i class="fa fa-circle-o-notch fa-spin"></i>
+<a href="." ></a>
+</h1>
+
+</div> <!-- end of book-header -->
+
+<div class="page-wrapper" tabindex="-1" role="main">
+<div class="page-inner">
+
+<section class="normal markdown-section">
+
+
+
+<h1 id="making-a-release">Making a release</h1>
+<p>Update the version number in <code>src/xibabel/__init__.py</code>.</p>
+<pre><code class="language-bash">pip install build twine
+</code></pre>
+<p>For reassurance:</p>
+<pre><code class="language-bash">git clean -fxd
+</code></pre>
+<p>Build the Sdist:</p>
+<pre><code class="language-bash">python -m build --sdist
+</code></pre>
+<p>Upload to PyPI:</p>
+<pre><code class="language-python">twine upload dist/xibabel*.tar.gz
+</code></pre>
+
+
+</section>
+
+</div> <!-- end of page-inner -->
+</div> <!-- end of page-wrapper -->
+
+</div> <!-- end of body-inner -->
+
+</div> <!-- end of book-body -->
+<script src="../js/main.js"></script>
+<script src="../js/gitbook.min.js"></script>
+<script src="../js/theme.min.js"></script>
+</body>
+</html>
