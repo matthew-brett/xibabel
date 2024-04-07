@@ -557,7 +557,7 @@ def test_to_bids(img_path, meta, tmp_path):
     back_nib = nib.load(tmp_path / 'out.nii.gz')
     assert np.allclose(back_nib.get_fdata(), fdata)
     with open(out_fname, 'rt') as fobj:
-        back_attrs = _json_attrs2attrs(json.load(fobj))
+        back_attrs = json.load(fobj)
     assert arr_dict_allclose(back_attrs, meta)
     assert arr_dict_allclose(load(out_fname).attrs, ximg.attrs)
     out_fname = tmp_path / 'out2.nii'
@@ -565,6 +565,6 @@ def test_to_bids(img_path, meta, tmp_path):
     back_nib = nib.load(out_fname)
     assert np.allclose(back_nib.get_fdata(), fdata)
     with open(tmp_path / 'out2.json', 'rt') as fobj:
-        back_attrs = _json_attrs2attrs(json.load(fobj))
+        back_attrs = json.load(fobj)
     assert arr_dict_allclose(back_attrs, meta)
     assert arr_dict_allclose(load(out_fname).attrs, ximg.attrs)

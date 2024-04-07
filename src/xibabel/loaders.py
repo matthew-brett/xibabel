@@ -267,6 +267,8 @@ _JSON_MARKER = '__json__'
 
 
 def _json_attrs2attrs(attrs):
+    """ Read JSON formed for encoding nested structures to netCDF
+    """
     out = {}
     for key, value in attrs.items():
         if (isinstance(value, list) and
@@ -297,6 +299,8 @@ _jdumps = partial(json.dumps, cls=NPEncoder)
 
 
 def _attrs2json_attrs(attrs):
+    """ Write JSON formed for encoding nested structures to netCDF
+    """
     out = {}
     for key, value in attrs.items():
         if (isinstance(value, dict) or
@@ -498,7 +502,7 @@ def load_bids(url_or_path, *, require_json=True, **kwargs):
     img, meta = _nibabel2img_meta(img_file)
     if sidecar_file:
         with sidecar_file as fobj:
-            meta.update(_json_attrs2attrs(json.load(fobj)))
+            meta.update(json.load(fobj))
     return _img_meta2ximg(img, meta, url_or_path)
 
 
@@ -667,7 +671,6 @@ def save_bids(obj, url_or_path, **kwargs):
     None
     """
     nib_img, attrs = to_nifti(obj)
-    attrs = _attrs2json_attrs(attrs)
     if str(url_or_path).endswith('.json'):
         json_uop = url_or_path
         img_uop = replace_suffix(url_or_path, '.json', '.nii.gz')
