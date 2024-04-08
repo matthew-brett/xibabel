@@ -19,7 +19,7 @@ from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              replace_suffix, _attrs2json_attrs, hdr2meta,
                              _path2class, XibFileError, to_nifti,
                              _ni_sort_expand_dims, _NI_SPACE_DIMS,
-                             _NI_TIME_DIM)
+                             _NI_TIME_DIM, _jdumps)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
@@ -227,6 +227,18 @@ def test_json_attrs():
     raj = {'foo': ['__json__', '{"bar": [[1], [2, 3]]}']}
     assert _attrs2json_attrs(ragged_arr) == raj
     assert _json_attrs2attrs(raj) == ragged_arr
+
+
+def test_jdumps():
+    d = {'foo': 1, 'bar': [2, 3]}
+    assert json.loads(_jdumps(d)) == d
+
+    class C:
+        pass
+
+    bad_d = {'foo': C()}
+    with pytest.raises(TypeError):
+        _jdumps(bad_d)
 
 
 def _check_dims_coords(ximg):

@@ -290,7 +290,8 @@ class NPEncoder(json.JSONEncoder):
     def default(self, obj):
         if hasattr(obj, 'tolist'):
             return obj.tolist()
-        return super().default(self, obj)
+        # No supported serialization, pass to default encoder to raise.
+        return super().default(obj)
 
 
 _jdumps = partial(json.dumps, cls=NPEncoder)
