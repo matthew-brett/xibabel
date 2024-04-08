@@ -223,6 +223,10 @@ def test_json_attrs():
            'baf': ['__json__', arr_j]}
     assert _attrs2json_attrs(dd) == ddj
     assert _json_attrs2attrs(ddj) == dd
+    ragged_arr = {'foo': {'bar': [[1], [2, 3]]}}
+    raj = {'foo': ['__json__', '{"bar": [[1], [2, 3]]}']}
+    assert _attrs2json_attrs(ragged_arr) == raj
+    assert _json_attrs2attrs(raj) == ragged_arr
 
 
 def _check_dims_coords(ximg):
