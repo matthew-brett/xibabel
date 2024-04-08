@@ -67,31 +67,24 @@ def test_chunking(monkeypatch):
     arr_shape = 10, 20, 30
     arr = rng.normal(size=arr_shape)
     fproxy = FDataObj(FakeProxy(arr))
-    f64s = np.dtype(float).itemsize
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY", lambda : arr.size * f64s)
-    assert fproxy.chunk_sizes() == [None, None, None]
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY",
-                        lambda : arr.size * f64s - 1)
-    assert fproxy.chunk_sizes() == [9, None, None]
     c_fproxy = FDataObj(FakeProxy(arr, order='C'))
-    assert c_fproxy.chunk_sizes() == [9, None, None]
     f_fproxy = FDataObj(FakeProxy(arr, order='F'))
-    assert f_fproxy.chunk_sizes() == [None, None, 29]
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY",
-                        lambda : arr.size * f64s / 2 - 1)
-    assert fproxy.chunk_sizes() == [4, None, None]
-    assert c_fproxy.chunk_sizes() == [4, None, None]
-    assert f_fproxy.chunk_sizes() == [None, None, 14]
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY",
-                        lambda : arr.size * f64s / 10 - 1)
-    assert fproxy.chunk_sizes() == [1, 19, None]
-    assert c_fproxy.chunk_sizes() == [1, 19, None]
-    assert f_fproxy.chunk_sizes() == [None, None, 2]
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY",
-                        lambda : arr.size * f64s / 30 - 1)
-    assert fproxy.chunk_sizes() == [1, 6, None]
-    assert c_fproxy.chunk_sizes() == [1, 6, None]
-    assert f_fproxy.chunk_sizes() == [None, 19, 1]
+    f64s = np.dtype(float).itemsize
+    N = None
+    for strategy, c_exp_sizes, f_exp_sizes in (
+        (lambda : arr.size * f64s, [N, N, N], [N, N, N]),
+        (lambda : arr.size * f64s - 1, [9, N, N], [N, N, 29]),
+        (lambda : arr.size * f64s / 2 - 1, [4, N, N], [N, N, 14]),
+        (lambda : arr.size * f64s / 10 - 1, [1, 19, N], [N, N, 2]),
+        (lambda : arr.size * f64s / 30 - 1, [1, 6, N], [N, 19, 1]),
+        (lambda : 11 * f64s, [1, 1, 11], [None, 1, 1]),
+        (lambda : 10 * f64s, [1, 1, 10], [None, 1, 1]),
+        (lambda : 2 * f64s, [1, 1, 2], [2, 1, 1]),
+    ):
+        monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY", strategy)
+        assert fproxy.chunk_sizes() == c_exp_sizes
+        assert c_fproxy.chunk_sizes() == c_exp_sizes
+        assert f_fproxy.chunk_sizes() == f_exp_sizes
 
 
 def out_back(img, out_path):
