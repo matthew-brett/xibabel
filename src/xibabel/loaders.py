@@ -537,6 +537,8 @@ def _comp_exts():
 def _path2class(filename):
     compression_exts = _comp_exts()
     for klass in nib.all_image_classes:
+        if len(klass.files_types) > 1:
+            continue
         base, ext, gzext, ftype = parse_filename(filename,
                                                  klass.files_types,
                                                  compression_exts)

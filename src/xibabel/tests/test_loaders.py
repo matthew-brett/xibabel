@@ -4,7 +4,6 @@
 from pathlib import Path
 from copy import deepcopy
 import os
-import gzip
 from itertools import product, permutations
 import json
 import shutil
@@ -324,6 +323,7 @@ def test_anat_loader():
 
 
 @skip_without_file(JC_EG_ANAT)
+@skip_without_file(JC_EG_ANAT_JSON)
 def test_anat_loader_http(fserver):
     nb_img = nib.load(JC_EG_ANAT)
     # Read nibabel from HTTP
@@ -332,8 +332,7 @@ def test_anat_loader_http(fserver):
     # Uncompressed, no gz
     name_no_gz = JC_EG_ANAT.with_suffix('').name
     out_path = fserver.server_path / name_no_gz
-    with gzip.open(JC_EG_ANAT, 'rb') as f:
-        out_path.write_bytes(f.read())
+    nib.save(nb_img, out_path)
     for name in (name_gz, name_no_gz):
         out_url = fserver.make_url(name)
         ximg = load(out_url)
@@ -345,6 +344,15 @@ def test_anat_loader_http(fserver):
         assert ximg.attrs == JC_EG_ANAT_META
         _check_dims_coords(ximg)
         assert np.all(np.array(ximg) == nb_img.get_fdata())
+    # Refuse to load pair files.
+    pair_path = fserver.server_path / 'pair.img'
+    nib.save(nb_img, pair_path)
+    json_path = fserver.server_path / 'pair.json'
+    json_path.write_text(JC_EG_ANAT_JSON.read_text())
+    for name in (pair_path.name, json_path.name):
+        out_url = fserver.make_url(name)
+        with pytest.raises(XibFileError):
+            load(out_url)
 
 
 @skip_without_file(JC_EG_ANAT)
