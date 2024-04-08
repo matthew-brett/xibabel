@@ -202,14 +202,12 @@ class Meta2NiHeader:
         """
         hdr = self.header
         affines = self.meta.get('xib-affines', {})
-        for code in ('aligned', 'scanner'):
+        methods = [hdr.set_sform, hdr.set_qform]
+        for code in ('mni', 'talairach', 'template', 'aligned', 'scanner'):
             if code in affines:
-                hdr.set_qform(affines[code], code)
-                break
-        for code in ('mni', 'talairach', 'template'):
-            if code in affines:
-                hdr.set_sform(affines[code], code)
-                break
+                methods.pop()(affines[code], code)
+                if not methods:
+                    break
 
     def updated_header(self):
         self.set_dim_labels()

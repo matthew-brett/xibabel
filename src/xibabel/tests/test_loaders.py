@@ -367,6 +367,58 @@ def test_round_trip(tmp_path):
     _check_dims_coords(back)
 
 
+@skip_without_file(JC_EG_ANAT)
+def test_rt_header(tmp_path):
+    # Modifying header modifies ximg and out
+    in_path = tmp_path / 'in.nii'
+    out_path = tmp_path / 'out.nii'
+    nimg = nib.load(JC_EG_ANAT)
+    old_affine = nimg.affine.copy()
+    new_affine = np.diag([2.1, 3.2, 4.1, 1])
+    new_affine[:3, 3] = [11, 12, 13]
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': old_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': old_affine})
+    nimg.set_sform(new_affine, 'scanner')
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': new_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': new_affine})
+    nimg.set_sform(new_affine, 'aligned')
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'aligned': new_affine, 'scanner': old_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'aligned': new_affine, 'scanner': old_affine})
+    nimg.set_sform(new_affine, 'template')
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'template': new_affine, 'scanner': old_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'template': new_affine, 'scanner': old_affine})
+    nimg.set_qform(old_affine, 'mni')
+    nimg.set_sform(new_affine, 'aligned')
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'mni': old_affine, 'aligned': new_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'mni': old_affine, 'aligned': new_affine})
+
+
 @h5netcdf_test
 @skip_without_file(JC_EG_ANAT)
 def test_round_trip_netcdf(tmp_path):
