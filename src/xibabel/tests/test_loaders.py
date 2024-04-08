@@ -57,6 +57,10 @@ def test_fdataobj_basic():
     assert arr[1, 2, :].dtype == np.arange(2).dtype
     assert fproxy.dtype == np.dtype(np.float64)
     assert fproxy[1, 2, :].dtype == np.dtype(np.float64)
+    fproxy = FDataObj(proxy, dtype=np.float32)
+    assert fproxy.dtype == np.dtype(np.float32)
+    with pytest.raises(ValueError, match='should be floating point type'):
+        FDataObj(proxy, dtype=int)
 
 
 def test_chunking(monkeypatch):
