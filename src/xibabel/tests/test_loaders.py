@@ -178,6 +178,21 @@ def test_nibabel_slice_timing(tmp_path):
     assert np.allclose(back_ximg.attrs['SliceTiming'], slice_times)
 
 
+def test_nifti_load_save(tmp_path):
+    # Default image.
+    arr = np.zeros((2, 3, 4, 5))
+    img = nib.Nifti1Image(arr, np.eye(4), None)
+    out_path = tmp_path / 'test.nii'
+    nib.save(img, out_path)
+    assert nib.load(out_path).shape == (2, 3, 4, 5)
+    ximg = load(out_path).compute()  # The file may later be deleted.
+    assert ximg.dims == ('i', 'j', 'k', 'p')
+    ximg.attrs['RepetitionTime'] = 2.0
+    back_ximg = out_back_xi(ximg, out_path)
+    assert back_ximg.dims == ('i', 'j', 'k', 'time')
+    back_ximg.attrs['RepetitionTime'] == 2.0
+
+
 def test_guess_format():
     root = Path('foo') / 'bar' / 'baz.suff'
     for v, exp in ((root, None),
