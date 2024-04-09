@@ -587,7 +587,7 @@ def _img_meta2ximg(img, meta, url_or_path):
             attrs={"units": "s"})
     return xr.DataArray(
         da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
-        dims=dims,
+        dims=dims + tuple('pqrsuvw')[:(dataobj.ndim - len(dims))],
         coords=coords,
         name=_url2name(url_or_path),
         # NB: zarr can't serialize numpy arrays as attrs

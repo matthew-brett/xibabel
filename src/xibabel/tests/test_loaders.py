@@ -94,6 +94,14 @@ def out_back(img, out_path):
     return img, hdr2meta(img.header)
 
 
+def out_back_xi(ximg, out_path):
+    if out_path.is_file():
+        os.unlink(out_path)
+    save(ximg, out_path)
+    # Compute on file to allow for later deletion of source file.
+    return load(out_path).compute()
+
+
 def test_nibabel_tr(tmp_path):
     # Default image.
     arr = np.zeros((2, 3, 4))
@@ -124,8 +132,13 @@ def test_nibabel_slice_timing(tmp_path):
     img = nib.Nifti1Image(arr, np.eye(4), None)
     out_path = tmp_path / 'test.nii'
     back_img, meta = out_back(img, out_path)
+    # Check metadata.
     exp_meta = {'xib-affines': {'aligned': np.eye(4).tolist()}}
     assert meta == exp_meta
+    # Load ximg for comparison.
+    ximg = load(out_path).compute()  # Get data from file.
+    assert ximg.attrs == exp_meta
+    # Try setting dimension information.
     img.header.set_dim_info(None, None, 1)
     back_img, meta = out_back(img, out_path)
     assert meta == merge(exp_meta, {'SliceEncodingDirection': 'j'})
@@ -145,11 +158,23 @@ def test_nibabel_slice_timing(tmp_path):
     img.header['slice_end'] = 3
     back_img, meta = out_back(img, out_path)
     assert meta == exp_dim
+    # No time dimension.
+    assert ximg.dims == tuple('ijkp')
+    # Check setting slice timing.
     img.header['slice_code'] = 4  # NIFTI_SLICE_ALT_DEC
+    # This fills in the times.
     back_img, meta = out_back(img, out_path)
     exp_timed = exp_dim.copy()
-    exp_timed['SliceTiming'] = [0.75, 0.25, 0.5, 0]
+    slice_times = [0.75, 0.25, 0.5, 0]
+    exp_timed['SliceTiming'] = slice_times
     assert meta == exp_timed
+    # Reset image back to default.
+    back_ximg = out_back_xi(ximg, out_path)
+    assert ximg.attrs == exp_meta
+    # Use header stuff to set slice timing.
+    ximg.attrs['SliceTiming'] = slice_times
+    back_ximg = out_back_xi(ximg, out_path)
+    assert np.allclose(back_ximg.attrs['SliceTiming'], slice_times)
 
 
 def test_guess_format():
