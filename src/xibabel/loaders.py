@@ -585,13 +585,18 @@ def _img_meta2ximg(img, meta, url_or_path):
             time_coords,
             dims=[_NI_TIME_DIM],
             attrs={"units": "s"})
-    return xr.DataArray(
+    ximg = xr.DataArray(
         da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
         dims=dims + tuple('pqrsuvw')[:(dataobj.ndim - len(dims))],
         coords=coords,
         name=_url2name(url_or_path),
         # NB: zarr can't serialize numpy arrays as attrs
         attrs=meta)
+    # Drop length one not-time dimension, as for NIfTI standard.
+    # We also expand with length one not-time dimension when saving.
+    if 'p' in ximg.dims and len(ximg['p']) == 1:
+        ximg = ximg.sel(p=0)
+    return ximg
 
 
 def _url2name(url_or_path):
