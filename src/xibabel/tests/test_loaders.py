@@ -130,50 +130,51 @@ def test_nibabel_slice_timing(tmp_path):
     # Default image.
     arr = np.zeros((2, 3, 4, 5))
     img = nib.Nifti1Image(arr, np.eye(4), None)
-    out_path = tmp_path / 'test.nii'
-    back_img, meta = out_back(img, out_path)
+    nib_path = tmp_path / 'test.nii'
+    back_img, meta = out_back(img, nib_path)
     # Check metadata.
     exp_meta = {'xib-affines': {'aligned': np.eye(4).tolist()}}
     assert meta == exp_meta
     # Load ximg for comparison.
-    ximg = load(out_path).compute()  # Get data from file.
+    ximg = load(nib_path).compute()  # Get data from file.
     assert ximg.attrs == exp_meta
     # Try setting dimension information.
     img.header.set_dim_info(None, None, 1)
-    back_img, meta = out_back(img, out_path)
+    nib_path2 = tmp_path / 'test2.nii'
+    back_img, meta = out_back(img, nib_path2)
     assert meta == merge(exp_meta, {'SliceEncodingDirection': 'j'})
     img.header.set_dim_info(1, 0, 2)
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     exp_dim = merge(exp_meta,
                     {'PhaseEncodingDirection': 'i',
                      'xib-FrequencyEncodingDirection': 'j',
                      'SliceEncodingDirection': 'k'})
     assert meta == exp_dim
     img.header.set_slice_duration(1 / 4)
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     assert meta == exp_dim
     img.header['slice_start'] = 0
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     assert meta == exp_dim
     img.header['slice_end'] = 3
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     assert meta == exp_dim
     # No time dimension.
     assert ximg.dims == tuple('ijkp')
     # Check setting slice timing.
     img.header['slice_code'] = 4  # NIFTI_SLICE_ALT_DEC
     # This fills in the times.
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     exp_timed = exp_dim.copy()
     slice_times = [0.75, 0.25, 0.5, 0]
     exp_timed['SliceTiming'] = slice_times
     assert meta == exp_timed
     # Reset image back to default.
-    back_ximg = out_back_xi(ximg, out_path)
+    back_ximg = out_back_xi(ximg, nib_path2)
     assert ximg.attrs == exp_meta
     # Use header stuff to set slice timing.
     ximg.attrs['SliceTiming'] = slice_times
-    back_ximg = out_back_xi(ximg, out_path)
+    back_ximg = out_back_xi(ximg, nib_path2)
     assert np.allclose(back_ximg.attrs['SliceTiming'], slice_times)
 
 
