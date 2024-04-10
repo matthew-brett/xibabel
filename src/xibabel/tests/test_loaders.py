@@ -159,8 +159,8 @@ def test_nibabel_slice_timing(tmp_path):
     img.header['slice_end'] = 3
     back_img, meta = out_back(img, nib_path2)
     assert meta == exp_dim
-    # No time dimension.
-    assert ximg.dims == tuple('ijkp')
+    # Has time dimension.
+    assert ximg.dims == tuple('ijk') + ('time',)
     # Check setting slice timing.
     img.header['slice_code'] = 4  # NIFTI_SLICE_ALT_DEC
     # This fills in the times.

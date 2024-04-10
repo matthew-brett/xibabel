@@ -498,11 +498,11 @@ def load_bids(url_or_path, *, require_json=True, **kwargs):
             raise XibFileError(
                 f'BIDS loading {url_or_path} but no corresponding '
                 f'{url_json} file, and `require_json` is True')
-    img, meta = _nibabel2img_meta(img_file)
+    nib_img, meta = _nibabel2img_meta(img_file)
     if sidecar_file:
         with sidecar_file as fobj:
             meta.update(json.load(fobj))
-    return _img_meta2ximg(img, meta, url_or_path)
+    return _img_meta2ximg(nib_img, meta, url_or_path)
 
 
 def load_nibabel(url_or_path, **kwargs):
@@ -553,8 +553,9 @@ class FSFileHolder(FileHolder):
         self.fileobj.close()
 
 
-_NI_SPACE_DIMS = ('i', 'j', 'k')
-_NI_TIME_DIM = 'time'
+_NI_DIM_NAMES = ('i', 'j', 'k', 'time', 'p', 'q', 'r')
+_NI_SPACE_DIMS = _NI_DIM_NAMES[:3]
+_NI_TIME_DIM = _NI_DIM_NAMES[3]
 
 
 def _nibabel2img_meta(img_file):
@@ -572,26 +573,50 @@ def _nibabel2img_meta(img_file):
 
 def _img_meta2ximg(img, meta, url_or_path):
     dataobj = FDataObj(img.dataobj)
-    coords = {}
-    dims = _NI_SPACE_DIMS
-    for ax_no, ax_name in enumerate(dims):
-        coords[ax_name] = xr.DataArray(
-            np.arange(img.shape[ax_no]),
-            dims=[ax_name])
-    if dataobj.ndim > 3 and (TR := meta.get("RepetitionTime")):
-        dims += (_NI_TIME_DIM,)
-        time_coords = np.arange(0, (img.shape[-1]) * TR, TR)
-        coords[_NI_TIME_DIM] = xr.DataArray(
-            time_coords,
-            dims=[_NI_TIME_DIM],
-            attrs={"units": "s"})
+    coords, dims = _get_coords_dims(dataobj, meta)
     return xr.DataArray(
         da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
-        dims=dims + tuple('pqrsuvw')[:(dataobj.ndim - len(dims))],
+        dims=dims,
         coords=coords,
         name=_url2name(url_or_path),
         # NB: zarr can't serialize numpy arrays as attrs
         attrs=meta)
+
+
+def _get_coords_dims(dataobj, meta):
+    coords = {}
+    shape = list(dataobj.shape)
+    n_dim = len(shape)
+    out_dims = list(_NI_DIM_NAMES)[:n_dim]
+    for ax_no, ax_name in enumerate(_NI_SPACE_DIMS):
+        coords[ax_name] = xr.DataArray(
+            np.arange(shape[ax_no]),
+            dims=[ax_name])
+    if n_dim <= 3:
+        return coords, out_dims[:dataobj.ndim]
+
+    # From:
+    # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/dim.html
+    # > If dim[4]=1 or dim[0] < 4, there is no time axis.
+    time_axis = 3
+    n_time = shape[time_axis] if n_dim > time_axis else 0
+    if n_time == 1:  # No time axis, drop
+        new_shape = shape[:time_axis] + shape[time_axis + 1:]
+        dataobj = dataobj.reshape(new_shape)
+        out_dims.pop(time_axis)
+        return coords, out_dims
+
+    # Consider special cases for: hz, ppm, rad
+    # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/xyzt_units.html
+    # Maybe set meta['xib-time-unts'] from header, and use here.
+    TR = meta.get("RepetitionTime")
+    if TR:
+        # Add time axis coordinates.
+        coords[_NI_TIME_DIM] = xr.DataArray(
+            np.arange(0, n_time) * TR,
+            dims=[_NI_TIME_DIM],
+            attrs={"units": "s"})
+    return coords, out_dims[:dataobj.ndim]
 
 
 def _url2name(url_or_path):
