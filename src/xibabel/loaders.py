@@ -85,6 +85,9 @@ class FDataObj:
             sizes[axis_no] = 1
         return sizes
 
+    def reshape(self, shape):
+        return self.__class__(self._dataobj.reshape(shape), self.dtype)
+
 
 dimno2name= {
     None: None,
@@ -573,7 +576,7 @@ def _nibabel2img_meta(img_file):
 
 def _img_meta2ximg(img, meta, url_or_path):
     dataobj = FDataObj(img.dataobj)
-    coords, dims = _get_coords_dims(dataobj, meta)
+    coords, dims, dataobj = _get_coords_dims(dataobj, meta)
     return xr.DataArray(
         da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
         dims=dims,
@@ -593,7 +596,7 @@ def _get_coords_dims(dataobj, meta):
             np.arange(shape[ax_no]),
             dims=[ax_name])
     if n_dim <= 3:
-        return coords, out_dims[:dataobj.ndim]
+        return coords, out_dims, dataobj
 
     # From:
     # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/dim.html
@@ -604,7 +607,7 @@ def _get_coords_dims(dataobj, meta):
         new_shape = shape[:time_axis] + shape[time_axis + 1:]
         dataobj = dataobj.reshape(new_shape)
         out_dims.pop(time_axis)
-        return coords, out_dims
+        return coords, out_dims, dataobj
 
     # Consider special cases for: hz, ppm, rad
     # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/xyzt_units.html
@@ -616,7 +619,7 @@ def _get_coords_dims(dataobj, meta):
             np.arange(0, n_time) * TR,
             dims=[_NI_TIME_DIM],
             attrs={"units": "s"})
-    return coords, out_dims[:dataobj.ndim]
+    return coords, out_dims, dataobj
 
 
 def _url2name(url_or_path):

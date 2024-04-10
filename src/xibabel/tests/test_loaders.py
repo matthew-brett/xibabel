@@ -178,19 +178,37 @@ def test_nibabel_slice_timing(tmp_path):
     assert np.allclose(back_ximg.attrs['SliceTiming'], slice_times)
 
 
+def _arr2ximg(arr, out_path):
+    img = nib.Nifti1Image(arr, np.eye(4), None)
+    nib.save(img, out_path)
+    return load(out_path).compute()  # The file may later be deleted.
+
+
 def test_nifti_load_save(tmp_path):
     # Default image.
-    arr = np.zeros((2, 3, 4, 5))
-    img = nib.Nifti1Image(arr, np.eye(4), None)
+    shape = (2, 3, 4, 5)
+    arr = np.arange(np.prod(shape), dtype=float).reshape(shape)
     out_path = tmp_path / 'test.nii'
-    nib.save(img, out_path)
-    assert nib.load(out_path).shape == (2, 3, 4, 5)
-    ximg = load(out_path).compute()  # The file may later be deleted.
-    assert ximg.dims == ('i', 'j', 'k', 'p')
+    ximg = _arr2ximg(arr, out_path)
+    assert np.allclose(ximg, arr)
+    assert ximg.dims == ('i', 'j', 'k', 'time')
+    assert ximg.attrs.get('RepetitionTime') is None
+    shape = (2, 3, 4, 5, 1)
+    arr = np.arange(np.prod(shape), dtype=float).reshape(shape)
+    out_path = tmp_path / 'test.nii'
+    ximg = _arr2ximg(arr, out_path)
+    assert np.allclose(ximg, arr)
+    assert ximg.dims == ('i', 'j', 'k', 'time', 'p')
     ximg.attrs['RepetitionTime'] = 2.0
     back_ximg = out_back_xi(ximg, out_path)
-    assert back_ximg.dims == ('i', 'j', 'k', 'time')
-    back_ximg.attrs['RepetitionTime'] == 2.0
+    assert back_ximg.dims == ('i', 'j', 'k', 'time', 'p')
+    assert back_ximg.attrs['RepetitionTime'] == 2.0
+    shape = (2, 3, 4, 1, 5, 1)
+    arr = np.arange(np.prod(shape), dtype=float).reshape(shape)
+    out_path = tmp_path / 'test.nii'
+    ximg = _arr2ximg(arr, out_path)
+    assert np.allclose(ximg, np.reshape(arr, (2, 3, 4, 5, 1)))
+    assert ximg.dims == ('i', 'j', 'k', 'p', 'q')
 
 
 def test_guess_format():
