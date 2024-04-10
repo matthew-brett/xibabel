@@ -569,7 +569,7 @@ def from_array(arr, meta=None):
     ximg : Xibabel image
     """
     meta = {} if meta is None else meta
-    return _arr_meta2ximg(arr, meta)
+    return _squeeze_time(_arr_meta2ximg(arr, meta))
 
 
 def _comp_exts():
@@ -616,12 +616,15 @@ def _nibabel2img_meta(img_file):
 def _img_meta2ximg(obj, meta, url_or_path):
     arr_like = FDataObj(obj.dataobj)
     ximg = _arr_meta2ximg(arr_like, meta, arr_like.chunk_sizes())
+    ximg.name = _url2name(url_or_path)
+    return _squeeze_time(ximg) if hasattr(obj, 'get_sform') else ximg
+
+
+def _squeeze_time(ximg):
     # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/dim.html
     # > If dim[4]=1 or dim[0] < 4, there is no time axis.
-    if (getattr(obj, 'get_sform', None) and 'time' in ximg.dims
-        and len(ximg['time']) == 1):
+    if 'time' in ximg.dims and len(ximg['time']) == 1:
         ximg = ximg.sel(time=0)
-    ximg.name = _url2name(url_or_path)
     return ximg
 
 

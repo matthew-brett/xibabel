@@ -240,6 +240,10 @@ def test_from_array():
     ximg = from_array(a4d)
     assert ximg.dims == tuple('ijk') + ('time',)
     assert np.all(a4d == ximg)
+    a5d = rng.normal(size=(3, 4, 5, 1, 6))
+    ximg = from_array(a5d)
+    assert ximg.dims == tuple('ijkp')
+    assert np.all(a5d.reshape((3, 4, 5, 6)) == ximg)
 
 
 def test_guess_format():
