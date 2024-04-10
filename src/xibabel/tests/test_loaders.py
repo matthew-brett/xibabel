@@ -246,6 +246,35 @@ def test_from_array():
     assert np.all(a5d.reshape((3, 4, 5, 6)) == ximg)
 
 
+def test_load_save_arr(tmp_path):
+    out_path = tmp_path / 'test.nii'
+    a3d = rng.normal(size=(3, 4, 5))
+    ximg = from_array(a3d)
+    assert ximg.xi.get_affines() == {}
+    save(ximg, out_path)
+    ximg_back = load(out_path)
+    assert ximg_back.shape == (3, 4, 5)
+    assert ximg_back.xi.get_affines() == {}
+
+
+def test_get_set_affines():
+    a3d = rng.normal(size=(3, 4, 5))
+    ximg = from_array(a3d)
+    assert ximg.dims == tuple('ijk')
+    assert ximg.xi.get_affines() == {}
+    new_affine = np.diag([1.2, 2.3, 3.4, 1])
+    ximg.xi.set_affines({'scanner': new_affine})
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': new_affine})
+    new_affine2 = new_affine.copy()
+    new_affine2[3, :3] = 10, 11, 12
+    ximg.xi.set_affines({'scanner': new_affine2})
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'scanner': new_affine2})
+    ximg.xi.set_affines({'mni': new_affine})
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'mni': new_affine, 'scanner': new_affine2})
+
+
 def test_guess_format():
     root = Path('foo') / 'bar' / 'baz.suff'
     for v, exp in ((root, None),

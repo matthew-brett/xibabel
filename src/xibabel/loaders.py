@@ -880,6 +880,29 @@ class XiAccessor:
         aff_d = self._obj.attrs.get('xib-affines', {})
         return {space: np.array(aff) for space, aff in aff_d.items()}
 
+    def set_affines(self, affines):
+        """ Set spatial affines to attributes of image
+
+        Affines overwrite existing affines.  If the affine does not exist, we
+        append to the affines dictionary.
+
+        Parameters
+        ----------
+        affines : dict
+            Dictionary where key, value pairs are affine space name and 4x4
+            affine array, respectively.
+
+        Notes
+        -----
+        Set `affines` are copies; if you modify the arrays in `affines`,
+        this will not affect the image affines.  The set affines overwrite
+        correspnding existing affines.
+        """
+        aff_d = self._obj.attrs.get('xib-affines', {})
+        for space, aff in affines.items():
+            aff_d[space] = np.array(aff)
+        self._obj.attrs['xib-affines'] = aff_d
+
     def with_updated_affines(self):
         """ Return image with affines, coordinates updated to match state.
 
