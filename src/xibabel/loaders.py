@@ -67,27 +67,49 @@ class FDataObj:
             Chunk sizes for Dask array creation, being number of elements in
             one chunk over all axes of array in ``self.dataobj``.
         """
-        sizes = [None] * self.ndim
-        if maxchunk is None:
-            maxchunk = MAXCHUNK_STRATEGY()
-        chunk_size = np.prod(self.shape) * self.dtype.itemsize
-        if chunk_size <= maxchunk:
-            return sizes
-        axis_nos = range(self.ndim)
-        if self.order == 'F':  # Assume C order by default.
-            axis_nos = axis_nos[::-1]
-        for axis_no in axis_nos:
-            chunk_size //= self.shape[axis_no]
-            n_chunks = maxchunk // chunk_size
-            if n_chunks:
-                sizes[axis_no] = int(n_chunks)
-                return sizes
-            sizes[axis_no] = 1
-        return sizes
+        return default_chunks(self, maxchunk)
 
     def reshape(self, shape):
         return self.__class__(self._dataobj.reshape(shape), self.dtype)
 
+
+def default_chunks(arr, order=None, maxchunk=None):
+    """ Calculate chunk sizes for given array shape and order.
+
+    Parameters
+    ----------
+    order : {None, "F", "C"}
+        Memory ordering of array.
+    maxchunk : None or int, optional
+        The largest allowable chunk sizes in bytes.
+
+    Returns
+    -------
+    chunk_sizes : list
+        Chunk sizes for Dask array creation, being number of elements in
+        one chunk over all axes of array in ``self.dataobj``.
+    """
+    if order is None:  # FDataObj, dataobj
+        order = getattr(arr, 'order', None)  # FDataObj, dataobj
+    if order is None:  # ndarray
+        order = getattr(getattr(arr, 'flags', None), 'f_contiguous', 'C')
+    sizes = [None] * arr.ndim
+    if maxchunk is None:
+        maxchunk = MAXCHUNK_STRATEGY()
+    chunk_size = np.prod(arr.shape) * arr.dtype.itemsize
+    if chunk_size <= maxchunk:
+        return sizes
+    axis_nos = range(arr.ndim)
+    if order == 'F':
+        axis_nos = axis_nos[::-1]
+    for axis_no in axis_nos:
+        chunk_size //= arr.shape[axis_no]
+        n_chunks = maxchunk // chunk_size
+        if n_chunks:
+            sizes[axis_no] = int(n_chunks)
+            return sizes
+        sizes[axis_no] = 1
+    return sizes
 
 dimno2name= {
     None: None,
@@ -533,6 +555,23 @@ def load_nibabel(url_or_path, **kwargs):
     return load_bids(url_or_path, require_json=False, **kwargs)
 
 
+def from_array(arr, meta=None):
+    r""" Create image from array-like `arr`
+
+    Assume array dimensions correspond to NIfTI labels.
+
+    Parameters
+    ----------
+    arr : array-like
+
+    Returns
+    -------
+    ximg : Xibabel image
+    """
+    meta = {} if meta is None else meta
+    return _arr_meta2ximg(arr, meta)
+
+
 def _comp_exts():
     return tuple(f'.{ext}' for ext in fsspec.utils.compressions)
 
@@ -574,52 +613,54 @@ def _nibabel2img_meta(img_file):
     return img, hdr2meta(img.header)
 
 
-def _img_meta2ximg(img, meta, url_or_path):
-    dataobj = FDataObj(img.dataobj)
-    coords, dims, dataobj = _get_coords_dims(dataobj, meta)
+def _img_meta2ximg(obj, meta, url_or_path):
+    arr_like = FDataObj(obj.dataobj)
+    ximg = _arr_meta2ximg(arr_like, meta, arr_like.chunk_sizes())
+    # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/dim.html
+    # > If dim[4]=1 or dim[0] < 4, there is no time axis.
+    if (getattr(obj, 'get_sform', None) and 'time' in ximg.dims
+        and len(ximg['time']) == 1):
+        ximg = ximg.sel(time=0)
+    ximg.name = _url2name(url_or_path)
+    return ximg
+
+
+def _arr_meta2ximg(arr, meta, chunk_sizes=None):
+    chunk_sizes = default_chunks(arr) if not chunk_sizes else chunk_sizes
+    coords, dims = _get_coords_dims(arr, meta)
     return xr.DataArray(
-        da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
+        da.from_array(arr, chunks=chunk_sizes),
         dims=dims,
         coords=coords,
-        name=_url2name(url_or_path),
         # NB: zarr can't serialize numpy arrays as attrs
         attrs=meta)
 
 
-def _get_coords_dims(dataobj, meta):
+def _get_coords_dims(arr, meta):
+    # Assume NIfTI dimension correspondence.
+    # Specifically up to three space axes precede a time axes, followed by
+    # other axes.
+    time_dim = _NI_DIM_NAMES.index(_NI_TIME_DIM)
     coords = {}
-    shape = list(dataobj.shape)
+    shape = list(arr.shape)
     n_dim = len(shape)
     out_dims = list(_NI_DIM_NAMES)[:n_dim]
-    for ax_no, ax_name in enumerate(_NI_SPACE_DIMS):
+    for ax_no, ax_name in enumerate(out_dims[:time_dim]):
         coords[ax_name] = xr.DataArray(
             np.arange(shape[ax_no]),
             dims=[ax_name])
-    if n_dim <= 3:
-        return coords, out_dims, dataobj
-
-    # From:
-    # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/dim.html
-    # > If dim[4]=1 or dim[0] < 4, there is no time axis.
-    time_axis = 3
-    n_time = shape[time_axis] if n_dim > time_axis else 0
-    if n_time == 1:  # No time axis, drop
-        new_shape = shape[:time_axis] + shape[time_axis + 1:]
-        dataobj = dataobj.reshape(new_shape)
-        out_dims.pop(time_axis)
-        return coords, out_dims, dataobj
-
     # Consider special cases for: hz, ppm, rad
     # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/xyzt_units.html
     # Maybe set meta['xib-time-unts'] from header, and use here.
     TR = meta.get("RepetitionTime")
-    if TR:
+    n_time = 0 if time_dim >= n_dim else shape[time_dim]
+    if n_time and TR:
         # Add time axis coordinates.
         coords[_NI_TIME_DIM] = xr.DataArray(
             np.arange(0, n_time) * TR,
             dims=[_NI_TIME_DIM],
             attrs={"units": "s"})
-    return coords, out_dims, dataobj
+    return coords, out_dims
 
 
 def _url2name(url_or_path):

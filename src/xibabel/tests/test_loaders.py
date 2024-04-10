@@ -18,7 +18,8 @@ from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              replace_suffix, _attrs2json_attrs, hdr2meta,
                              _path2class, XibFileError, to_nifti,
                              _ni_sort_expand_dims, _NI_SPACE_DIMS,
-                             _NI_TIME_DIM, _jdumps)
+                             _NI_TIME_DIM, _jdumps, from_array)
+import nibabel.testing as nit
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
@@ -209,6 +210,36 @@ def test_nifti_load_save(tmp_path):
     ximg = _arr2ximg(arr, out_path)
     assert np.allclose(ximg, np.reshape(arr, (2, 3, 4, 5, 1)))
     assert ximg.dims == ('i', 'j', 'k', 'p', 'q')
+
+
+@pytest.mark.parametrize("filename",
+                         ('minc1_4d.mnc',
+                          'minc2_4d.mnc',
+                          'example_nifti2.nii.gz',
+                          'phantom_varscale.PAR',
+                         ))
+def test_other_load(filename, tmp_path):
+    in_path = nit.get_test_data() / filename
+    nib_img = nib.load(in_path)
+    ximg = load(in_path)
+    assert nib_img.shape == ximg.shape
+    assert len(ximg.dims) == len(nib_img.shape)
+    assert np.allclose(nib_img.get_fdata(), ximg)
+
+
+def test_from_array():
+    a2d = rng.normal(size=(3, 4))
+    ximg = from_array(a2d)
+    assert ximg.dims == tuple('ij')
+    assert np.all(a2d == ximg)
+    a3d = rng.normal(size=(3, 4, 5))
+    ximg = from_array(a3d)
+    assert ximg.dims == tuple('ijk')
+    assert np.all(a3d == ximg)
+    a4d = rng.normal(size=(3, 4, 5, 6))
+    ximg = from_array(a4d)
+    assert ximg.dims == tuple('ijk') + ('time',)
+    assert np.all(a4d == ximg)
 
 
 def test_guess_format():
