@@ -195,17 +195,17 @@ def test_nifti_load_save(tmp_path):
     assert ximg.attrs.get('RepetitionTime') is None
     shape = (2, 3, 4, 5, 1)
     arr = np.arange(np.prod(shape), dtype=float).reshape(shape)
-    out_path = tmp_path / 'test.nii'
+    out_path = tmp_path / 'test2.nii'
     ximg = _arr2ximg(arr, out_path)
     assert np.allclose(ximg, arr)
     assert ximg.dims == ('i', 'j', 'k', 'time', 'p')
     ximg.attrs['RepetitionTime'] = 2.0
-    back_ximg = out_back_xi(ximg, out_path)
+    back_ximg = out_back_xi(ximg, tmp_path / 'test2a.nii')
     assert back_ximg.dims == ('i', 'j', 'k', 'time', 'p')
     assert back_ximg.attrs['RepetitionTime'] == 2.0
     shape = (2, 3, 4, 1, 5, 1)
     arr = np.arange(np.prod(shape), dtype=float).reshape(shape)
-    out_path = tmp_path / 'test.nii'
+    out_path = tmp_path / 'test3.nii'
     ximg = _arr2ximg(arr, out_path)
     assert np.allclose(ximg, np.reshape(arr, (2, 3, 4, 5, 1)))
     assert ximg.dims == ('i', 'j', 'k', 'p', 'q')
