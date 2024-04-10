@@ -202,14 +202,12 @@ class Meta2NiHeader:
         """
         hdr = self.header
         affines = self.meta.get('xib-affines', {})
-        for code in ('aligned', 'scanner'):
+        methods = [hdr.set_sform, hdr.set_qform]
+        for code in ('mni', 'talairach', 'template', 'aligned', 'scanner'):
             if code in affines:
-                hdr.set_qform(affines[code], code)
-                break
-        for code in ('mni', 'talairach', 'template'):
-            if code in affines:
-                hdr.set_sform(affines[code], code)
-                break
+                methods.pop()(affines[code], code)
+                if not methods:
+                    break
 
     def updated_header(self):
         self.set_dim_labels()
@@ -292,7 +290,8 @@ class NPEncoder(json.JSONEncoder):
     def default(self, obj):
         if hasattr(obj, 'tolist'):
             return obj.tolist()
-        return super().default(self, obj)
+        # No supported serialization, pass to default encoder to raise.
+        return super().default(obj)
 
 
 _jdumps = partial(json.dumps, cls=NPEncoder)
@@ -538,6 +537,8 @@ def _comp_exts():
 def _path2class(filename):
     compression_exts = _comp_exts()
     for klass in nib.all_image_classes:
+        if len(klass.files_types) > 1:
+            continue
         base, ext, gzext, ftype = parse_filename(filename,
                                                  klass.files_types,
                                                  compression_exts)
@@ -586,7 +587,7 @@ def _img_meta2ximg(img, meta, url_or_path):
             attrs={"units": "s"})
     return xr.DataArray(
         da.from_array(dataobj, chunks=dataobj.chunk_sizes()),
-        dims=dims,
+        dims=dims + tuple('pqrsuvw')[:(dataobj.ndim - len(dims))],
         coords=coords,
         name=_url2name(url_or_path),
         # NB: zarr can't serialize numpy arrays as attrs

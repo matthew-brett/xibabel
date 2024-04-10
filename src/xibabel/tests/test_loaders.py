@@ -4,7 +4,6 @@
 from pathlib import Path
 from copy import deepcopy
 import os
-import gzip
 from itertools import product, permutations
 import json
 import shutil
@@ -19,7 +18,7 @@ from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              replace_suffix, _attrs2json_attrs, hdr2meta,
                              _path2class, XibFileError, to_nifti,
                              _ni_sort_expand_dims, _NI_SPACE_DIMS,
-                             _NI_TIME_DIM)
+                             _NI_TIME_DIM, _jdumps)
 from xibabel.xutils import merge
 from xibabel.testing import (JC_EG_FUNC, JC_EG_FUNC_JSON, JC_EG_ANAT,
                              JC_EG_ANAT_JSON, JH_EG_FUNC, skip_without_file,
@@ -57,37 +56,34 @@ def test_fdataobj_basic():
     assert arr[1, 2, :].dtype == np.arange(2).dtype
     assert fproxy.dtype == np.dtype(np.float64)
     assert fproxy[1, 2, :].dtype == np.dtype(np.float64)
+    fproxy = FDataObj(proxy, dtype=np.float32)
+    assert fproxy.dtype == np.dtype(np.float32)
+    with pytest.raises(ValueError, match='should be floating point type'):
+        FDataObj(proxy, dtype=int)
 
 
 def test_chunking(monkeypatch):
     arr_shape = 10, 20, 30
     arr = rng.normal(size=arr_shape)
     fproxy = FDataObj(FakeProxy(arr))
-    f64s = np.dtype(float).itemsize
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY", lambda : arr.size * f64s)
-    assert fproxy.chunk_sizes() == [None, None, None]
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY",
-                        lambda : arr.size * f64s - 1)
-    assert fproxy.chunk_sizes() == [9, None, None]
     c_fproxy = FDataObj(FakeProxy(arr, order='C'))
-    assert c_fproxy.chunk_sizes() == [9, None, None]
     f_fproxy = FDataObj(FakeProxy(arr, order='F'))
-    assert f_fproxy.chunk_sizes() == [None, None, 29]
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY",
-                        lambda : arr.size * f64s / 2 - 1)
-    assert fproxy.chunk_sizes() == [4, None, None]
-    assert c_fproxy.chunk_sizes() == [4, None, None]
-    assert f_fproxy.chunk_sizes() == [None, None, 14]
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY",
-                        lambda : arr.size * f64s / 10 - 1)
-    assert fproxy.chunk_sizes() == [1, 19, None]
-    assert c_fproxy.chunk_sizes() == [1, 19, None]
-    assert f_fproxy.chunk_sizes() == [None, None, 2]
-    monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY",
-                        lambda : arr.size * f64s / 30 - 1)
-    assert fproxy.chunk_sizes() == [1, 6, None]
-    assert c_fproxy.chunk_sizes() == [1, 6, None]
-    assert f_fproxy.chunk_sizes() == [None, 19, 1]
+    f64s = np.dtype(float).itemsize
+    N = None
+    for strategy, c_exp_sizes, f_exp_sizes in (
+        (lambda : arr.size * f64s, [N, N, N], [N, N, N]),
+        (lambda : arr.size * f64s - 1, [9, N, N], [N, N, 29]),
+        (lambda : arr.size * f64s / 2 - 1, [4, N, N], [N, N, 14]),
+        (lambda : arr.size * f64s / 10 - 1, [1, 19, N], [N, N, 2]),
+        (lambda : arr.size * f64s / 30 - 1, [1, 6, N], [N, 19, 1]),
+        (lambda : 11 * f64s, [1, 1, 11], [None, 1, 1]),
+        (lambda : 10 * f64s, [1, 1, 10], [None, 1, 1]),
+        (lambda : 2 * f64s, [1, 1, 2], [2, 1, 1]),
+    ):
+        monkeypatch.setattr(loaders, "MAXCHUNK_STRATEGY", strategy)
+        assert fproxy.chunk_sizes() == c_exp_sizes
+        assert c_fproxy.chunk_sizes() == c_exp_sizes
+        assert f_fproxy.chunk_sizes() == f_exp_sizes
 
 
 def out_back(img, out_path):
@@ -96,6 +92,14 @@ def out_back(img, out_path):
     nib.save(img, out_path)
     img = nib.load(out_path)
     return img, hdr2meta(img.header)
+
+
+def out_back_xi(ximg, out_path):
+    if out_path.is_file():
+        os.unlink(out_path)
+    save(ximg, out_path)
+    # Compute on file to allow for later deletion of source file.
+    return load(out_path).compute()
 
 
 def test_nibabel_tr(tmp_path):
@@ -126,34 +130,52 @@ def test_nibabel_slice_timing(tmp_path):
     # Default image.
     arr = np.zeros((2, 3, 4, 5))
     img = nib.Nifti1Image(arr, np.eye(4), None)
-    out_path = tmp_path / 'test.nii'
-    back_img, meta = out_back(img, out_path)
+    nib_path = tmp_path / 'test.nii'
+    back_img, meta = out_back(img, nib_path)
+    # Check metadata.
     exp_meta = {'xib-affines': {'aligned': np.eye(4).tolist()}}
     assert meta == exp_meta
+    # Load ximg for comparison.
+    ximg = load(nib_path).compute()  # Get data from file.
+    assert ximg.attrs == exp_meta
+    # Try setting dimension information.
     img.header.set_dim_info(None, None, 1)
-    back_img, meta = out_back(img, out_path)
+    nib_path2 = tmp_path / 'test2.nii'
+    back_img, meta = out_back(img, nib_path2)
     assert meta == merge(exp_meta, {'SliceEncodingDirection': 'j'})
     img.header.set_dim_info(1, 0, 2)
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     exp_dim = merge(exp_meta,
                     {'PhaseEncodingDirection': 'i',
                      'xib-FrequencyEncodingDirection': 'j',
                      'SliceEncodingDirection': 'k'})
     assert meta == exp_dim
     img.header.set_slice_duration(1 / 4)
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     assert meta == exp_dim
     img.header['slice_start'] = 0
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     assert meta == exp_dim
     img.header['slice_end'] = 3
-    back_img, meta = out_back(img, out_path)
+    back_img, meta = out_back(img, nib_path2)
     assert meta == exp_dim
+    # No time dimension.
+    assert ximg.dims == tuple('ijkp')
+    # Check setting slice timing.
     img.header['slice_code'] = 4  # NIFTI_SLICE_ALT_DEC
-    back_img, meta = out_back(img, out_path)
+    # This fills in the times.
+    back_img, meta = out_back(img, nib_path2)
     exp_timed = exp_dim.copy()
-    exp_timed['SliceTiming'] = [0.75, 0.25, 0.5, 0]
+    slice_times = [0.75, 0.25, 0.5, 0]
+    exp_timed['SliceTiming'] = slice_times
     assert meta == exp_timed
+    # Reset image back to default.
+    back_ximg = out_back_xi(ximg, nib_path2)
+    assert ximg.attrs == exp_meta
+    # Use header stuff to set slice timing.
+    ximg.attrs['SliceTiming'] = slice_times
+    back_ximg = out_back_xi(ximg, nib_path2)
+    assert np.allclose(back_ximg.attrs['SliceTiming'], slice_times)
 
 
 def test_guess_format():
@@ -226,6 +248,22 @@ def test_json_attrs():
            'baf': ['__json__', arr_j]}
     assert _attrs2json_attrs(dd) == ddj
     assert _json_attrs2attrs(ddj) == dd
+    ragged_arr = {'foo': {'bar': [[1], [2, 3]]}}
+    raj = {'foo': ['__json__', '{"bar": [[1], [2, 3]]}']}
+    assert _attrs2json_attrs(ragged_arr) == raj
+    assert _json_attrs2attrs(raj) == ragged_arr
+
+
+def test_jdumps():
+    d = {'foo': 1, 'bar': [2, 3]}
+    assert json.loads(_jdumps(d)) == d
+
+    class C:
+        pass
+
+    bad_d = {'foo': C()}
+    with pytest.raises(TypeError):
+        _jdumps(bad_d)
 
 
 def _check_dims_coords(ximg):
@@ -311,6 +349,7 @@ def test_anat_loader():
 
 
 @skip_without_file(JC_EG_ANAT)
+@skip_without_file(JC_EG_ANAT_JSON)
 def test_anat_loader_http(fserver):
     nb_img = nib.load(JC_EG_ANAT)
     # Read nibabel from HTTP
@@ -319,8 +358,7 @@ def test_anat_loader_http(fserver):
     # Uncompressed, no gz
     name_no_gz = JC_EG_ANAT.with_suffix('').name
     out_path = fserver.server_path / name_no_gz
-    with gzip.open(JC_EG_ANAT, 'rb') as f:
-        out_path.write_bytes(f.read())
+    nib.save(nb_img, out_path)
     for name in (name_gz, name_no_gz):
         out_url = fserver.make_url(name)
         ximg = load(out_url)
@@ -332,6 +370,15 @@ def test_anat_loader_http(fserver):
         assert ximg.attrs == JC_EG_ANAT_META
         _check_dims_coords(ximg)
         assert np.all(np.array(ximg) == nb_img.get_fdata())
+    # Refuse to load pair files.
+    pair_path = fserver.server_path / 'pair.img'
+    nib.save(nb_img, pair_path)
+    json_path = fserver.server_path / 'pair.json'
+    json_path.write_text(JC_EG_ANAT_JSON.read_text())
+    for name in (pair_path.name, json_path.name):
+        out_url = fserver.make_url(name)
+        with pytest.raises(XibFileError):
+            load(out_url)
 
 
 @skip_without_file(JC_EG_ANAT)
@@ -368,6 +415,58 @@ def test_round_trip(tmp_path):
     back = load(f'file:///{out_path}')
     assert back.attrs == JC_EG_ANAT_META
     _check_dims_coords(back)
+
+
+@skip_without_file(JC_EG_ANAT)
+def test_rt_header(tmp_path):
+    # Modifying header modifies ximg and out
+    in_path = tmp_path / 'in.nii'
+    out_path = tmp_path / 'out.nii'
+    nimg = nib.load(JC_EG_ANAT)
+    old_affine = nimg.affine.copy()
+    new_affine = np.diag([2.1, 3.2, 4.1, 1])
+    new_affine[:3, 3] = [11, 12, 13]
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': old_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': old_affine})
+    nimg.set_sform(new_affine, 'scanner')
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': new_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': new_affine})
+    nimg.set_sform(new_affine, 'aligned')
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'aligned': new_affine, 'scanner': old_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'aligned': new_affine, 'scanner': old_affine})
+    nimg.set_sform(new_affine, 'template')
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'template': new_affine, 'scanner': old_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'template': new_affine, 'scanner': old_affine})
+    nimg.set_qform(old_affine, 'mni')
+    nimg.set_sform(new_affine, 'aligned')
+    nib.save(nimg, in_path)
+    ximg = load(in_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'mni': old_affine, 'aligned': new_affine})
+    save(ximg, out_path)
+    ximg = load(out_path)
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'mni': old_affine, 'aligned': new_affine})
 
 
 @h5netcdf_test
