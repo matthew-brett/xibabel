@@ -45,6 +45,9 @@ class FakeProxy:
     def __array__(self):
         return self[:]
 
+    def reshape(self, shape):
+        return self._array.reshape(shape)
+
 
 def test_fdataobj_basic():
     arr = np.arange(24).reshape((2, 3, 4))
@@ -61,6 +64,9 @@ def test_fdataobj_basic():
     assert fproxy.dtype == np.dtype(np.float32)
     with pytest.raises(ValueError, match='should be floating point type'):
         FDataObj(proxy, dtype=int)
+    rprox = fproxy.reshape((6, 4))
+    assert rprox.shape == (6, 4)
+    assert np.all(rprox[:] == arr.reshape((6, 4)))
 
 
 def test_chunking(monkeypatch):

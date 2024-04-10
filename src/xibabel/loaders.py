@@ -70,14 +70,26 @@ class FDataObj:
         return default_chunks(self, maxchunk)
 
     def reshape(self, shape):
+        """ Return object reshaped to `shape`
+
+        Notes
+        -----
+        There is no requirement that the contained ``dataobj`` has a
+        ``reshape`` method; if not, calling this method will raise an
+        ``AttributeError``.
+        """
         return self.__class__(self._dataobj.reshape(shape), self.dtype)
 
 
 def default_chunks(arr, order=None, maxchunk=None):
-    """ Calculate chunk sizes for given array shape and order.
+    """ Calculate chunk sizes for array-like `arr` from shape and `order`.
 
     Parameters
     ----------
+    arr : array-like
+        Object with attributes `.shape` and `.dtype`.  It can also have
+        attribute `order`, and / or `.flags.f_contiguous`, used only if `order`
+        below is None.
     order : {None, "F", "C"}
         Memory ordering of array.
     maxchunk : None or int, optional
@@ -93,13 +105,14 @@ def default_chunks(arr, order=None, maxchunk=None):
         order = getattr(arr, 'order', None)  # FDataObj, dataobj
     if order is None:  # ndarray
         order = getattr(getattr(arr, 'flags', None), 'f_contiguous', 'C')
-    sizes = [None] * arr.ndim
+    ndim = len(arr.shape)
+    sizes = [None] * ndim
     if maxchunk is None:
         maxchunk = MAXCHUNK_STRATEGY()
     chunk_size = np.prod(arr.shape) * arr.dtype.itemsize
     if chunk_size <= maxchunk:
         return sizes
-    axis_nos = range(arr.ndim)
+    axis_nos = range(ndim)
     if order == 'F':
         axis_nos = axis_nos[::-1]
     for axis_no in axis_nos:
