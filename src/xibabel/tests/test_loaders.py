@@ -312,13 +312,22 @@ def test_get_set_affines():
     ximg.xi.set_affines({'scanner': new_affine})
     assert arr_dict_allclose(ximg.xi.get_affines(), {'scanner': new_affine})
     new_affine2 = new_affine.copy()
-    new_affine2[3, :3] = 10, 11, 12
+    new_affine2[:3, 3] = 10, 11, 12
     ximg.xi.set_affines({'scanner': new_affine2})
     assert arr_dict_allclose(ximg.xi.get_affines(),
                              {'scanner': new_affine2})
     ximg.xi.set_affines({'mni': new_affine})
     assert arr_dict_allclose(ximg.xi.get_affines(),
                              {'mni': new_affine, 'scanner': new_affine2})
+    # Adjust affines gives the same reult back.
+    ximg_adj = ximg.xi.with_updated_affines()
+    assert arr_dict_allclose(ximg.xi.get_affines(),
+                             {'mni': new_affine, 'scanner': new_affine2})
+    # Coordinates with irregular spacing give affine errors.
+    ximg_adj.coords['k'] = [0, 1, 3, 4, 5]
+    with pytest.raises(XibFormatError,
+                       match='Cannot handle irregular voxel spacing for "k"'):
+        ximg_adj.xi.with_updated_affines()
 
 
 def test_guess_format():

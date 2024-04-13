@@ -985,7 +985,7 @@ class XiAccessor:
                 vd = np.diff(vox_indices)
                 if any(vd[1:] != vd[0]):
                     raise XibFormatError(
-                        'Cannot handle irregular voxel spacing for {name}')
+                        f'Cannot handle irregular voxel spacing for "{name}"')
                 vox_scalings[i] = vd[0]
         return from_matvec(affine[:3, :3] * vox_scalings,
                            apply_affine(affine, vox_origin))
