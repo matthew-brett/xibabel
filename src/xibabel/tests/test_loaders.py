@@ -18,8 +18,8 @@ from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              PROCESSORS, _json_attrs2attrs, drop_suffix,
                              replace_suffix, _attrs2json_attrs, hdr2attrs,
-                             _path2class, XibFileError, to_nifti,
-                             _ni_sort_expand_dims, _NI_SPACE_DIMS,
+                             _path2class, XibFileError, XibFormatError,
+                             to_nifti, _ni_sort_expand_dims, _NI_SPACE_DIMS,
                              _NI_TIME_DIM, _jdumps, from_array)
 import nibabel.testing as nit
 from xibabel.xutils import merge
@@ -810,3 +810,17 @@ def test_to_bids(img_path, attrs, tmp_path):
         back_attrs = json.load(fobj)
     assert arr_dict_allclose(back_attrs, attrs)
     assert arr_dict_allclose(load(out_fname).attrs, ximg.attrs)
+
+
+def test_loadsave_errors(tmp_path):
+    ximg = from_array(np.arange(24).reshape((2, 3, 4)))
+    save(ximg, tmp_path / 'ok.nii')
+    # Nibabel, wrong format.
+    with pytest.raises(nib.filebasedimages.ImageFileError):
+        save(ximg, tmp_path / 'bad1.foo')
+    # Nibabel, forced wrong format.
+    with pytest.raises(XibFormatError):
+        save(ximg, tmp_path / 'bad1.nii', format='foo')
+    # Nibabel, forced wrong format for load.
+    with pytest.raises(XibFormatError):
+        save(ximg, tmp_path / 'ok.nii', format='foo')
