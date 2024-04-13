@@ -21,6 +21,8 @@ import fsspec
 import xarray as xr
 import dask.array as da
 
+from .xutils import merge
+
 
 logger = logging.getLogger(__name__)
 
@@ -599,9 +601,7 @@ def from_array(arr, *, fa_kwargs=None, **kwargs):
     ximg : Xibabel image
     """
     arr_like = FDataObj(arr) if nib.is_proxy(arr) else arr
-    ximg = _arr_attrs2ximg(arr_like,
-                           fa_kwargs=fa_kwargs,
-                           **kwargs)
+    ximg = _arr_attrs2ximg(arr_like, fa_kwargs=fa_kwargs, **kwargs)
     if 'dims' not in kwargs:  # Use NIfTI conventions
         ximg = _squeeze_time(ximg)
     return ximg
@@ -641,9 +641,9 @@ def _nibabel2img_attrs(img_file):
     if 'local' in img_file.fs.protocol:
         img = nib.load(img_file.path)
     else:  # Not local - use stream interface.
-        img_klass = _path2class(img_file.full_name)
+        img_klass = _path2class(img_file.path)
         # We are passing out opened fsspec files.
-        fh = FileHolder(img_file.full_name, img_file.open())
+        fh = FileHolder(img_file.path, img_file.open())
         img = img_klass.from_file_map({'image': fh})
     return img, hdr2attrs(img.header)
 
@@ -796,17 +796,16 @@ def save_bids(obj, url_or_path, **kwargs):
             drop_suffix(url_or_path, _comp_exts()),
             (),
             '.json')
-    sidecar_file, img_file = fsspec.open_files((json_uop, img_uop),
-                                               mode='wt',
-                                               compression='infer',
-                                               **kwargs)
+    img_file = fsspec.open(img_uop, compression='infer', **kwargs)
+    sidecar_kwargs = merge(kwargs, {'mode': 'wt'})
+    sidecar_file = img_file.fs.open(json_uop, **sidecar_kwargs)
     with sidecar_file as f:
         f.write(_jdumps(attrs))
     if 'local' in img_file.fs.protocol:
         nib.save(nib_img, img_file.path)
         return
     # Not local - use stream interface.
-    img_klass = _path2class(img_uop.full_name)
+    img_klass = _path2class(img_uop.path)
     # We are passing out opened fsspec files.
     with img_uop as fh:
         img_klass.to_file_map({'image': fh})
