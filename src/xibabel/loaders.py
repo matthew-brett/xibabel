@@ -38,6 +38,9 @@ class FDataObj:
     """ Wrapper for dataobj that returns floating point values from indexing.
     """
 
+    # Signal that this is a proxy (for a proxy).
+    is_proxy = True
+
     def __init__(self, dataobj, dtype=np.float64):
         dtype = np.dtype(dtype)
         if not issubclass(dtype.type, np.inexact):
@@ -124,31 +127,33 @@ def default_chunks(arr, order=None, maxchunk=None):
         sizes[axis_no] = 1
     return sizes
 
-dimno2name= {
+
+_DIMNO2NAME = {
     None: None,
     0: 'i',
     1: 'j',
     2: 'k'}
 
-dimname2no = {v: k for k, v in dimno2name.items()}
+
+_DIMNAME2NO = {v: k for k, v in _DIMNO2NAME.items()}
 
 
-time_unit_scaler = {
+_TIME_UNIT_SCALER = {
     'sec': 1,
     'msec': 1 / 1000,
     'usec': 1 / 1_000_000}
 
 
-class NiHeader2Meta:
+class NiHeader2Attrs:
 
     def __init__(self, header):
         self.header = nib.Nifti1Header.from_header(header)
 
     def get_dim_labels(self):
         freq_dim, phase_dim, slice_dim = self.header.get_dim_info()
-        return {'xib-FrequencyEncodingDirection': dimno2name[freq_dim],
-                'PhaseEncodingDirection': dimno2name[phase_dim],
-                'SliceEncodingDirection': dimno2name[slice_dim]}
+        return {'xib-FrequencyEncodingDirection': _DIMNO2NAME[freq_dim],
+                'PhaseEncodingDirection': _DIMNO2NAME[phase_dim],
+                'SliceEncodingDirection': _DIMNO2NAME[slice_dim]}
 
     def get_slice_timing(self):
         hdr = self.header
@@ -176,7 +181,7 @@ class NiHeader2Meta:
         space_units, time_units = hdr.get_xyzt_units()
         if time_units == 'unknown':
             return None
-        return time_unit_scaler[time_units] * time_zoom
+        return _TIME_UNIT_SCALER[time_units] * time_zoom
 
     def get_affines(self):
         """ Collect valid affines
@@ -190,32 +195,32 @@ class NiHeader2Meta:
                 affines[code] = affine.tolist()
         return affines
 
-    def to_meta(self):
-        meta = self.get_dim_labels()
-        meta['SliceTiming'] = self.get_slice_timing()
-        meta['RepetitionTime'] = self.get_repetition_time()
-        meta['xib-affines'] = self.get_affines()
-        return {k: v for k, v in meta.items() if v is not None}
+    def to_attrs(self):
+        attrs = self.get_dim_labels()
+        attrs['SliceTiming'] = self.get_slice_timing()
+        attrs['RepetitionTime'] = self.get_repetition_time()
+        attrs['xib-affines'] = self.get_affines()
+        return {k: v for k, v in attrs.items() if v is not None}
 
 
-class Meta2NiHeader:
+class Attrs2NiHeader:
     """ Class writes BIDS attribute dictionary into NIfTI header.
     """
 
-    def __init__(self, header=None, meta=None):
+    def __init__(self, header=None, attrs=None):
         self.header = nib.Nifti1Header.from_header(header)
-        self.meta = {} if meta is None else meta.copy()
+        self.attrs = {} if attrs is None else attrs.copy()
 
     def set_dim_labels(self):
         # Assume canonical axis order.
-        d = self.meta
+        d = self.attrs
         self.header.set_dim_info(
-            freq=dimname2no.get(d.get('xib-FrequencyEncodingDirection')),
-            phase=dimname2no.get(d.get('PhaseEncodingDirection')),
-            slice=dimname2no.get(d.get('SliceEncodingDirection')))
+            freq=_DIMNAME2NO.get(d.get('xib-FrequencyEncodingDirection')),
+            phase=_DIMNAME2NO.get(d.get('PhaseEncodingDirection')),
+            slice=_DIMNAME2NO.get(d.get('SliceEncodingDirection')))
 
     def set_slice_timing(self):
-        slice_times = self.meta.get('SliceTiming')
+        slice_times = self.attrs.get('SliceTiming')
         if slice_times is None:
             return
         try:
@@ -229,7 +234,7 @@ class Meta2NiHeader:
         # Assume header record of image already has correct shape.
         if len(zooms) < 4:
             return
-        TR = self.meta.get('RepetitionTime')
+        TR = self.attrs.get('RepetitionTime')
         TR, units = (0, None) if TR is None else (TR, 'sec')
         zooms[3] = TR
         hdr.set_xyzt_units(t=units)
@@ -239,7 +244,7 @@ class Meta2NiHeader:
         """ Set valid affines to header.
         """
         hdr = self.header
-        affines = self.meta.get('xib-affines', {})
+        affines = self.attrs.get('xib-affines', {})
         methods = [hdr.set_sform, hdr.set_qform]
         for code in ('mni', 'talairach', 'template', 'aligned', 'scanner'):
             if code in affines:
@@ -255,9 +260,9 @@ class Meta2NiHeader:
         return self.header
 
 
-def hdr2meta(header):
+def hdr2attrs(header):
     # We could try extracting more information from other file types, but
-    return NiHeader2Meta(header).to_meta()
+    return NiHeader2Attrs(header).to_attrs()
 
 
 def load_zarr(url_or_path, **kwargs):
@@ -536,11 +541,13 @@ def load_bids(url_or_path, *, require_json=True, **kwargs):
             raise XibFileError(
                 f'BIDS loading {url_or_path} but no corresponding '
                 f'{url_json} file, and `require_json` is True')
-    nib_img, meta = _nibabel2img_meta(img_file)
+    nib_img, attrs = _nibabel2img_attrs(img_file)
     if sidecar_file:
         with sidecar_file as fobj:
-            meta.update(json.load(fobj))
-    return _img_meta2ximg(nib_img, meta, url_or_path)
+            attrs.update(json.load(fobj))
+    return _img_attrs2ximg(
+        nib_img,
+        **{'attrs': attrs, 'name': _url2name(url_or_path)})
 
 
 def load_nibabel(url_or_path, **kwargs):
@@ -568,7 +575,7 @@ def load_nibabel(url_or_path, **kwargs):
     return load_bids(url_or_path, require_json=False, **kwargs)
 
 
-def from_array(arr, meta=None):
+def from_array(arr, *, fa_kwargs=None, **kwargs):
     r""" Create image from array-like `arr`
 
     Assume array dimensions correspond to NIfTI labels.
@@ -576,13 +583,28 @@ def from_array(arr, meta=None):
     Parameters
     ----------
     arr : array-like
+    chunks : 'auto' or int or tuple
+        See documentation for ``dask.array.from_array``
+    fa_kwargs : None or mapping, optional, keyword only
+        Keyword arguments that we pass through the ``dask.array.from_array``
+        function.
+    \*\*kwargs : mapping, keyword arguments
+        Keyword arguments to pass to ``DataArray`` constructor.  A common
+        example is ``dims`` (None or sequence of dimension names).  If None,
+        use NIfTI convention for coordinate names.  If sequence, it must match
+        the number of dimensions of `arr`.
 
     Returns
     -------
     ximg : Xibabel image
     """
-    meta = {} if meta is None else meta
-    return _squeeze_time(_arr_meta2ximg(arr, meta))
+    arr_like = FDataObj(arr) if nib.is_proxy(arr) else arr
+    ximg = _arr_attrs2ximg(arr_like,
+                           fa_kwargs=fa_kwargs,
+                           **kwargs)
+    if 'dims' not in kwargs:  # Use NIfTI conventions
+        ximg = _squeeze_time(ximg)
+    return ximg
 
 
 def _comp_exts():
@@ -613,7 +635,7 @@ _NI_SPACE_DIMS = _NI_DIM_NAMES[:3]
 _NI_TIME_DIM = _NI_DIM_NAMES[3]
 
 
-def _nibabel2img_meta(img_file):
+def _nibabel2img_attrs(img_file):
     # Identify relevant files from img_file
     # Make file_map with opened files.
     if 'local' in img_file.fs.protocol:
@@ -623,13 +645,19 @@ def _nibabel2img_meta(img_file):
         # We are passing out opened fsspec files.
         fh = FileHolder(img_file.full_name, img_file.open())
         img = img_klass.from_file_map({'image': fh})
-    return img, hdr2meta(img.header)
+    return img, hdr2attrs(img.header)
 
 
-def _img_meta2ximg(obj, meta, url_or_path):
+def _img_attrs2ximg(obj, *, fa_kwargs=None, **kwargs):
     arr_like = FDataObj(obj.dataobj)
-    ximg = _arr_meta2ximg(arr_like, meta, arr_like.chunk_sizes())
-    ximg.name = _url2name(url_or_path)
+    fa_kwargs = {} if fa_kwargs is None else {}
+    if not fa_kwargs.get('fancy'):  # Assume no fancy indexing by default.
+        fa_kwargs['fancy'] = False
+    if not fa_kwargs.get('chunks'):
+        fa_kwargs['chunks'] = arr_like.chunk_sizes()
+    ximg = _arr_attrs2ximg(arr_like,
+                           fa_kwargs=fa_kwargs,
+                           **kwargs)
     return _squeeze_time(ximg) if hasattr(obj, 'get_sform') else ximg
 
 
@@ -641,42 +669,44 @@ def _squeeze_time(ximg):
     return ximg
 
 
-def _arr_meta2ximg(arr, meta, chunk_sizes=None):
-    chunk_sizes = default_chunks(arr) if not chunk_sizes else chunk_sizes
-    coords, dims = _get_coords_dims(arr, meta)
-    return xr.DataArray(
-        da.from_array(arr, chunks=chunk_sizes),
-        dims=dims,
-        coords=coords,
-        # NB: zarr can't serialize numpy arrays as attrs
-        attrs=meta)
+def _arr_attrs2ximg(arr, *, fa_kwargs=None, **kwargs):
+    fa_kwargs = {} if fa_kwargs is None else fa_kwargs
+    if not fa_kwargs.get('chunks'):
+        fa_kwargs['chunks'] = default_chunks(arr)
+    shape = arr.shape
+    if not kwargs.get('dims'):
+        kwargs['dims'] = list(_NI_DIM_NAMES)[:len(shape)]
+    kwargs['coords'] = _filled_coords(kwargs.get('coords', {}),
+                                      kwargs['dims'],
+                                      shape,
+                                      kwargs.get('attrs', {}))
+    return xr.DataArray(da.from_array(arr, **fa_kwargs), **kwargs)
 
 
-def _get_coords_dims(arr, meta):
-    # Assume NIfTI dimension correspondence.
-    # Specifically up to three space axes precede a time axes, followed by
-    # other axes.
-    time_dim = _NI_DIM_NAMES.index(_NI_TIME_DIM)
-    coords = {}
-    shape = list(arr.shape)
-    n_dim = len(shape)
-    out_dims = list(_NI_DIM_NAMES)[:n_dim]
-    for ax_no, ax_name in enumerate(out_dims[:time_dim]):
-        coords[ax_name] = xr.DataArray(
+def _filled_coords(coords, dims, shape, attrs):
+    # Fill space coordinate axes
+    out_coords = coords.copy()
+    for ax_no, ax_name in enumerate(dims):
+        if ax_name not in _NI_SPACE_DIMS or ax_name in out_coords:
+            continue
+        out_coords[ax_name] = xr.DataArray(
             np.arange(shape[ax_no]),
             dims=[ax_name])
+    if _NI_TIME_DIM not in dims:
+        return out_coords
     # Consider special cases for: hz, ppm, rad
     # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/xyzt_units.html
-    # Maybe set meta['xib-time-unts'] from header, and use here.
-    TR = meta.get("RepetitionTime")
-    n_time = 0 if time_dim >= n_dim else shape[time_dim]
-    if n_time and TR:
-        # Add time axis coordinates.
-        coords[_NI_TIME_DIM] = xr.DataArray(
-            np.arange(0, n_time) * TR,
-            dims=[_NI_TIME_DIM],
-            attrs={"units": "s"})
-    return coords, out_dims
+    # Maybe set attrs['xib-time-unts'] from header, and use here.
+    TR = attrs.get("RepetitionTime")
+    if not TR:
+        return out_coords
+    # Add time axis coordinates.
+    n_time = shape[dims.index(_NI_TIME_DIM)]
+    out_coords[_NI_TIME_DIM] = xr.DataArray(
+        np.arange(0, n_time) * TR,
+        dims=[_NI_TIME_DIM],
+        attrs={"units": "s"})
+    return out_coords
 
 
 def _url2name(url_or_path):
@@ -866,7 +896,7 @@ def to_nifti(ximg):
     hdr = nib.Nifti1Header()
     hdr.set_data_shape(back.shape)
     # Build header from attributes.
-    hdr = Meta2NiHeader(hdr, back.attrs).updated_header()
+    hdr = Attrs2NiHeader(hdr, back.attrs).updated_header()
     return nib.Nifti1Image(back, None, hdr), back.attrs
 
 

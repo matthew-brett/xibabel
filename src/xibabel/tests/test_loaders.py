@@ -12,10 +12,12 @@ import numpy as np
 
 import nibabel as nib
 
+import xarray as xr
+
 from xibabel import loaders
 from xibabel.loaders import (FDataObj, load_bids, load_nibabel, load, save,
                              PROCESSORS, _json_attrs2attrs, drop_suffix,
-                             replace_suffix, _attrs2json_attrs, hdr2meta,
+                             replace_suffix, _attrs2json_attrs, hdr2attrs,
                              _path2class, XibFileError, to_nifti,
                              _ni_sort_expand_dims, _NI_SPACE_DIMS,
                              _NI_TIME_DIM, _jdumps, from_array)
@@ -98,7 +100,7 @@ def out_back(img, out_path):
         os.unlink(out_path)
     nib.save(img, out_path)
     img = nib.load(out_path)
-    return img, hdr2meta(img.header)
+    return img, hdr2attrs(img.header)
 
 
 def out_back_xi(ximg, out_path):
@@ -114,23 +116,23 @@ def test_nibabel_tr(tmp_path):
     arr = np.zeros((2, 3, 4))
     img = nib.Nifti1Image(arr, np.eye(4), None)
     out_path = tmp_path / 'test.nii'
-    back_img, meta = out_back(img, out_path)
-    exp_meta = {'xib-affines': {'aligned': np.eye(4).tolist()}}
-    assert meta == exp_meta
+    back_img, attrs = out_back(img, out_path)
+    exp_attrs = {'xib-affines': {'aligned': np.eye(4).tolist()}}
+    assert attrs == exp_attrs
     arr = np.zeros((2, 3, 4, 6))
     img = nib.Nifti1Image(arr, np.eye(4), None)
-    back_img, meta = out_back(img, out_path)
-    assert meta == exp_meta
+    back_img, attrs = out_back(img, out_path)
+    assert attrs == exp_attrs
     img.header.set_xyzt_units('mm', 'sec')
-    back_img, meta = out_back(img, out_path)
-    exp_meta.update({'RepetitionTime': 1.0})
-    assert meta == exp_meta
+    back_img, attrs = out_back(img, out_path)
+    exp_attrs.update({'RepetitionTime': 1.0})
+    assert attrs == exp_attrs
     img.header.set_xyzt_units('mm', 'msec')
-    back_img, meta = out_back(img, out_path)
-    assert meta['RepetitionTime'] == 1 / 1000
+    back_img, attrs = out_back(img, out_path)
+    assert attrs['RepetitionTime'] == 1 / 1000
     img.header.set_xyzt_units('mm', 'usec')
-    back_img, meta = out_back(img, out_path)
-    assert meta['RepetitionTime'] == 1 / 1_000_000
+    back_img, attrs = out_back(img, out_path)
+    assert attrs['RepetitionTime'] == 1 / 1_000_000
 
 
 def test_nibabel_slice_timing(tmp_path):
@@ -138,47 +140,47 @@ def test_nibabel_slice_timing(tmp_path):
     arr = np.zeros((2, 3, 4, 5))
     img = nib.Nifti1Image(arr, np.eye(4), None)
     nib_path = tmp_path / 'test.nii'
-    back_img, meta = out_back(img, nib_path)
-    # Check metadata.
-    exp_meta = {'xib-affines': {'aligned': np.eye(4).tolist()}}
-    assert meta == exp_meta
+    back_img, attrs = out_back(img, nib_path)
+    # Check attrsdata.
+    exp_attrs = {'xib-affines': {'aligned': np.eye(4).tolist()}}
+    assert attrs == exp_attrs
     # Load ximg for comparison.
     ximg = load(nib_path).compute()  # Get data from file.
-    assert ximg.attrs == exp_meta
+    assert ximg.attrs == exp_attrs
     # Try setting dimension information.
     img.header.set_dim_info(None, None, 1)
     nib_path2 = tmp_path / 'test2.nii'
-    back_img, meta = out_back(img, nib_path2)
-    assert meta == merge(exp_meta, {'SliceEncodingDirection': 'j'})
+    back_img, attrs = out_back(img, nib_path2)
+    assert attrs == merge(exp_attrs, {'SliceEncodingDirection': 'j'})
     img.header.set_dim_info(1, 0, 2)
-    back_img, meta = out_back(img, nib_path2)
-    exp_dim = merge(exp_meta,
+    back_img, attrs = out_back(img, nib_path2)
+    exp_dim = merge(exp_attrs,
                     {'PhaseEncodingDirection': 'i',
                      'xib-FrequencyEncodingDirection': 'j',
                      'SliceEncodingDirection': 'k'})
-    assert meta == exp_dim
+    assert attrs == exp_dim
     img.header.set_slice_duration(1 / 4)
-    back_img, meta = out_back(img, nib_path2)
-    assert meta == exp_dim
+    back_img, attrs = out_back(img, nib_path2)
+    assert attrs == exp_dim
     img.header['slice_start'] = 0
-    back_img, meta = out_back(img, nib_path2)
-    assert meta == exp_dim
+    back_img, attrs = out_back(img, nib_path2)
+    assert attrs == exp_dim
     img.header['slice_end'] = 3
-    back_img, meta = out_back(img, nib_path2)
-    assert meta == exp_dim
+    back_img, attrs = out_back(img, nib_path2)
+    assert attrs == exp_dim
     # Has time dimension.
     assert ximg.dims == tuple('ijk') + ('time',)
     # Check setting slice timing.
     img.header['slice_code'] = 4  # NIFTI_SLICE_ALT_DEC
     # This fills in the times.
-    back_img, meta = out_back(img, nib_path2)
+    back_img, attrs = out_back(img, nib_path2)
     exp_timed = exp_dim.copy()
     slice_times = [0.75, 0.25, 0.5, 0]
     exp_timed['SliceTiming'] = slice_times
-    assert meta == exp_timed
+    assert attrs == exp_timed
     # Reset image back to default.
     back_ximg = out_back_xi(ximg, nib_path2)
-    assert ximg.attrs == exp_meta
+    assert ximg.attrs == exp_attrs
     # Use header stuff to set slice timing.
     ximg.attrs['SliceTiming'] = slice_times
     back_ximg = out_back_xi(ximg, nib_path2)
@@ -234,6 +236,7 @@ def test_other_load(filename, tmp_path):
 
 
 def test_from_array():
+    # Without axis names, uses NIfTI convention
     a2d = rng.normal(size=(3, 4))
     ximg = from_array(a2d)
     assert ximg.dims == tuple('ij')
@@ -246,10 +249,47 @@ def test_from_array():
     ximg = from_array(a4d)
     assert ximg.dims == tuple('ijk') + ('time',)
     assert np.all(a4d == ximg)
-    a5d = rng.normal(size=(3, 4, 5, 1, 6))
+    s5d = (3, 4, 5, 1, 6)
+    a5d = rng.normal(size=s5d)
     ximg = from_array(a5d)
     assert ximg.dims == tuple('ijkp')
     assert np.all(a5d.reshape((3, 4, 5, 6)) == ximg)
+    # With axis names, follows axis names.
+    names = tuple('ji')
+    ximg = from_array(a2d, dims=names)
+    assert ximg.dims == names
+    assert np.all(a2d == ximg)
+    assert tuple(ximg.coords) == names
+    names = tuple('pki')
+    ximg = from_array(a3d, dims=names)
+    assert ximg.dims == names
+    # Only spatial axes have default coordinates.
+    assert sorted(ximg.coords) == ['i', 'k']
+    assert np.all(a3d == ximg)
+    names = ('j', 'time', 'k', 'i')
+    ximg = from_array(a4d, dims=names)
+    assert ximg.dims == names
+    assert sorted(ximg.coords) == ['i', 'j', 'k']
+    assert np.all(a4d == ximg)
+    # 5D with length 1 dimension not dropped by default.
+    names = ('time',) + tuple('ikjn')
+    ximg = from_array(a5d, dims=names)
+    assert ximg.dims == names
+    assert sorted(ximg.coords) == list('ijk')
+    assert np.all(a5d == ximg)
+    # With repetition time, we get a time axis
+    attrs = {'RepetitionTime': 2.5}
+    ximg = from_array(a5d, dims=names, attrs=attrs)
+    assert ximg.dims == names
+    assert sorted(ximg.coords) == ['i', 'j', 'k', 'time']
+    assert np.all(a5d == ximg)
+    assert np.all(ximg.coords['i'] == np.arange(4))
+    assert np.all(ximg.coords['k'] == np.arange(5))
+    # If you specify coordinates, we prefer the specified coordinates.
+    coords = {'i': xr.DataArray(np.arange(2, 6), dims=['i'])}
+    ximg = from_array(a5d, dims=names, attrs=attrs, coords=coords)
+    assert np.all(ximg.coords['i'] == np.arange(2, 6))
+    assert np.all(ximg.coords['k'] == np.arange(5))
 
 
 def test_load_save_arr(tmp_path):
@@ -385,7 +425,7 @@ def _check_dims_coords(ximg):
 def test_nib_loader_jc():
     img = nib.load(JC_EG_FUNC)
     ximg = load_nibabel(JC_EG_FUNC)
-    assert ximg.attrs == JC_EG_FUNC_META
+    assert ximg.attrs == JC_EG_FUNC_ATTRS
     _check_dims_coords(ximg)
     assert np.all(np.array(ximg) == img.get_fdata())
 
@@ -403,8 +443,8 @@ def test_nib_loader_jh():
 
 if fetcher.have_file(JC_EG_FUNC):
     img = nib.load(JC_EG_FUNC)
-    JC_EG_FUNC_META = json.loads(JC_EG_FUNC_JSON.read_text())
-    JC_EG_FUNC_META_RAW = {
+    JC_EG_FUNC_ATTRS = json.loads(JC_EG_FUNC_JSON.read_text())
+    JC_EG_FUNC_ATTRS_RAW = {
         'xib-FrequencyEncodingDirection': 'i',
          'PhaseEncodingDirection': 'j',
          'SliceEncodingDirection': 'k',
@@ -412,26 +452,26 @@ if fetcher.have_file(JC_EG_FUNC):
          'xib-affines':
          {'scanner': img.affine.tolist()}
     }
-    JC_EG_FUNC_META.update(JC_EG_FUNC_META_RAW)
+    JC_EG_FUNC_ATTRS.update(JC_EG_FUNC_ATTRS_RAW)
 else:  # For parametrized tests.
-    JC_EG_FUNC_META = {}
-    JC_EG_FUNC_META_RAW = {}
+    JC_EG_FUNC_ATTRS = {}
+    JC_EG_FUNC_ATTRS_RAW = {}
 
 
 if fetcher.have_file(JC_EG_ANAT):
     img = nib.load(JC_EG_ANAT)
-    JC_EG_ANAT_META = json.loads(JC_EG_ANAT_JSON.read_text())
-    JC_EG_ANAT_META_RAW = {
+    JC_EG_ANAT_ATTRS = json.loads(JC_EG_ANAT_JSON.read_text())
+    JC_EG_ANAT_ATTRS_RAW = {
         'xib-FrequencyEncodingDirection': 'j',
          'PhaseEncodingDirection': 'i',
          'SliceEncodingDirection': 'k',
          'xib-affines':
          {'scanner': img.affine.tolist()}
     }
-    JC_EG_ANAT_META.update(JC_EG_ANAT_META_RAW)
+    JC_EG_ANAT_ATTRS.update(JC_EG_ANAT_ATTRS_RAW)
 else:  # For parametrized tests.
-    JC_EG_ANAT_META = {}
-    JC_EG_ANAT_META_RAW = {}
+    JC_EG_ANAT_ATTRS = {}
+    JC_EG_ANAT_ATTRS_RAW = {}
 
 
 
@@ -446,7 +486,7 @@ def test_anat_loader():
         assert ximg.shape == (176, 256, 256)
         assert ximg.dims == _NI_SPACE_DIMS
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
-        assert ximg.attrs == JC_EG_ANAT_META
+        assert ximg.attrs == JC_EG_ANAT_ATTRS
         _check_dims_coords(ximg)
         assert np.all(np.array(ximg) == img.get_fdata())
 
@@ -470,7 +510,7 @@ def test_anat_loader_http(fserver):
         # Check parameters
         assert ximg.shape == (176, 256, 256)
         assert ximg.name == JC_EG_ANAT.name.split('.')[0]
-        assert ximg.attrs == JC_EG_ANAT_META
+        assert ximg.attrs == JC_EG_ANAT_ATTRS
         _check_dims_coords(ximg)
         assert np.all(np.array(ximg) == nb_img.get_fdata())
     # Refuse to load pair files.
@@ -507,16 +547,16 @@ def test_round_trip(tmp_path):
     save(ximg, out_path)
     back = load(out_path)
     assert back.shape == (176, 256, 256)
-    assert back.attrs == JC_EG_ANAT_META
+    assert back.attrs == JC_EG_ANAT_ATTRS
     _check_dims_coords(back)
     # And again
     save(ximg, out_path)
     back = load(out_path)
-    assert back.attrs == JC_EG_ANAT_META
+    assert back.attrs == JC_EG_ANAT_ATTRS
     _check_dims_coords(back)
     # With url
     back = load(f'file:///{out_path}')
-    assert back.attrs == JC_EG_ANAT_META
+    assert back.attrs == JC_EG_ANAT_ATTRS
     _check_dims_coords(back)
 
 
@@ -580,9 +620,9 @@ def test_round_trip_netcdf(tmp_path):
     save(ximg, out_path)
     back = load(out_path)
     assert back.shape == (176, 256, 256)
-    assert back.attrs == JC_EG_ANAT_META
+    assert back.attrs == JC_EG_ANAT_ATTRS
     back = load(f'file:///{out_path}')
-    assert back.attrs == JC_EG_ANAT_META
+    assert back.attrs == JC_EG_ANAT_ATTRS
     _check_dims_coords(back)
 
 
@@ -660,7 +700,7 @@ def test_round_trip_netcdf_url(fserver):
     out_url = fserver.make_url('out.nc')
     back = load(out_url)
     assert back.shape == (176, 256, 256)
-    assert back.attrs == JC_EG_ANAT_META
+    assert back.attrs == JC_EG_ANAT_ATTRS
     _check_dims_coords(back)
 
 
@@ -676,7 +716,7 @@ def test_matching_img_error(tmp_path):
     shutil.copy2(JC_EG_ANAT, tmp_path)
     back = load(out_img)
     assert back.shape == (176, 256, 256)
-    assert back.attrs == JC_EG_ANAT_META
+    assert back.attrs == JC_EG_ANAT_ATTRS
     _check_dims_coords(back)
     os.unlink(out_img)
     with pytest.raises(XibFileError, match='does not appear to exist'):
@@ -685,9 +725,9 @@ def test_matching_img_error(tmp_path):
     os.unlink(out_json)
     back = load(out_img)
     _check_dims_coords(back)
-    assert back.attrs == JC_EG_ANAT_META_RAW
+    assert back.attrs == JC_EG_ANAT_ATTRS_RAW
     back = load_bids(out_img, require_json=False)
-    assert back.attrs == JC_EG_ANAT_META_RAW
+    assert back.attrs == JC_EG_ANAT_ATTRS_RAW
     _check_dims_coords(back)
     with pytest.raises(XibFileError, match='`require_json` is True'):
         load_bids(out_img, require_json=True)
@@ -720,10 +760,10 @@ def test_ni_sort_expand_dims():
 
 @skip_without_file(JC_EG_ANAT)
 @skip_without_file(JC_EG_FUNC)
-@pytest.mark.parametrize("img_path, meta_raw",
-                         ((JC_EG_ANAT, JC_EG_ANAT_META_RAW),
-                          (JC_EG_FUNC, JC_EG_FUNC_META_RAW)))
-def test_to_nifti(img_path, meta_raw):
+@pytest.mark.parametrize("img_path, attrs_raw",
+                         ((JC_EG_ANAT, JC_EG_ANAT_ATTRS_RAW),
+                          (JC_EG_FUNC, JC_EG_FUNC_ATTRS_RAW)))
+def test_to_nifti(img_path, attrs_raw):
     orig_img = nib.load(img_path)
     orig_data = orig_img.get_fdata()
     ximg = load(img_path)
@@ -732,25 +772,25 @@ def test_to_nifti(img_path, meta_raw):
     # Basic conversion.
     img, attrs = to_nifti(ximg)
     assert np.all(img.get_fdata() == orig_data)
-    assert arr_dict_allclose(hdr2meta(img.header), meta_raw)
+    assert arr_dict_allclose(hdr2attrs(img.header), attrs_raw)
     img, attrs = to_nifti(ximg.T)
     assert np.all(img.get_fdata() == orig_data)
-    assert arr_dict_allclose(hdr2meta(img.header), meta_raw)
+    assert arr_dict_allclose(hdr2attrs(img.header), attrs_raw)
     img, attrs = to_nifti(ximg.T.sel(k=32))  # Drop k axis
     assert np.all(img.get_fdata() == orig_data[:, :, 32:33])
     # This changes the origin of the affine.
     new_affine = orig_img.slicer[:, :, 32:33].affine
-    exp_meta_32 = deepcopy(meta_raw)
-    exp_meta_32['xib-affines']['scanner'] = new_affine
-    assert arr_dict_allclose(hdr2meta(img.header), exp_meta_32)
+    exp_attrs_32 = deepcopy(attrs_raw)
+    exp_attrs_32['xib-affines']['scanner'] = new_affine
+    assert arr_dict_allclose(hdr2attrs(img.header), exp_attrs_32)
 
 
 @skip_without_file(JC_EG_ANAT)
 @skip_without_file(JC_EG_FUNC)
-@pytest.mark.parametrize("img_path, meta",
-                         ((JC_EG_ANAT, JC_EG_ANAT_META),
-                          (JC_EG_FUNC, JC_EG_FUNC_META)))
-def test_to_bids(img_path, meta, tmp_path):
+@pytest.mark.parametrize("img_path, attrs",
+                         ((JC_EG_ANAT, JC_EG_ANAT_ATTRS),
+                          (JC_EG_FUNC, JC_EG_FUNC_ATTRS)))
+def test_to_bids(img_path, attrs, tmp_path):
     nib_img = nib.load(img_path)
     fdata = nib_img.get_fdata()
     ximg = load(img_path)
@@ -760,7 +800,7 @@ def test_to_bids(img_path, meta, tmp_path):
     assert np.allclose(back_nib.get_fdata(), fdata)
     with open(out_fname, 'rt') as fobj:
         back_attrs = json.load(fobj)
-    assert arr_dict_allclose(back_attrs, meta)
+    assert arr_dict_allclose(back_attrs, attrs)
     assert arr_dict_allclose(load(out_fname).attrs, ximg.attrs)
     out_fname = tmp_path / 'out2.nii'
     save(ximg, out_fname)
@@ -768,5 +808,5 @@ def test_to_bids(img_path, meta, tmp_path):
     assert np.allclose(back_nib.get_fdata(), fdata)
     with open(tmp_path / 'out2.json', 'rt') as fobj:
         back_attrs = json.load(fobj)
-    assert arr_dict_allclose(back_attrs, meta)
+    assert arr_dict_allclose(back_attrs, attrs)
     assert arr_dict_allclose(load(out_fname).attrs, ximg.attrs)
