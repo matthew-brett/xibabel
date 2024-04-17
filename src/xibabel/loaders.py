@@ -24,6 +24,9 @@ import dask.array as da
 from .xutils import merge
 
 
+_have_h5netcdf = importlib.util.find_spec('h5netcdf') is not None
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -147,6 +150,8 @@ _TIME_UNIT_SCALER = {
 
 
 class NiHeader2Attrs:
+    """ Class to convert NIfTI header to matching BIDS attributes
+    """
 
     def __init__(self, header):
         self.header = nib.Nifti1Header.from_header(header)
@@ -206,7 +211,7 @@ class NiHeader2Attrs:
 
 
 class Attrs2NiHeader:
-    """ Class writes BIDS attribute dictionary into NIfTI header.
+    """ Class to write BIDS attribute dictionary into NIfTI header
     """
 
     def __init__(self, header=None, attrs=None):
@@ -263,6 +268,18 @@ class Attrs2NiHeader:
 
 
 def hdr2attrs(header):
+    """ Extract BIDS-compatible attributes from input image `header`
+
+    Parameters
+    ----------
+    header : Nibabel image header
+
+    Returns
+    -------
+    attrs : dict
+        Dictionary with BIDS-compatible key, value pairs corresponding to
+        information in `header`.
+    """
     # We could try extracting more information from other file types, but
     return NiHeader2Attrs(header).to_attrs()
 
@@ -311,6 +328,9 @@ _JSON_MARKER = '__json__'
 
 def _json_attrs2attrs(attrs):
     """ Read JSON formed for encoding nested structures to netCDF
+
+    See: :func:`_attrs2json_attrs` for function to create such encoded
+    structures.
     """
     out = {}
     for key, value in attrs.items():
@@ -344,6 +364,9 @@ _jdumps = partial(json.dumps, cls=NPEncoder)
 
 def _attrs2json_attrs(attrs):
     """ Write JSON formed for encoding nested structures to netCDF
+
+    See: :func:`_json_attrs2attrs` for function to read such encoded
+    structures.
     """
     out = {}
     for key, value in attrs.items():
@@ -352,11 +375,6 @@ def _attrs2json_attrs(attrs):
             value = [_JSON_MARKER, _jdumps(value)]
         out[key] = value
     return out
-
-
-def _check_netcdf():
-    if importlib.util.find_spec('h5netcdf') is None:
-        raise XibFileError('Please install h5netcdf module to load netCDF')
 
 
 def load_netcdf(url_or_path, **kwargs):
@@ -377,7 +395,8 @@ def load_netcdf(url_or_path, **kwargs):
     XibFileError
         If there is no file corresponding to `url_or_path`.
     """
-    _check_netcdf()
+    if not _have_h5netcdf:
+        raise XibFileError('Please install h5netcdf module to load netCDF')
     with fsspec.open(url_or_path) as fobj:
         img = xr.open_dataarray(fobj, engine='h5netcdf', **kwargs)
     img.attrs = _json_attrs2attrs(img.attrs)
@@ -580,7 +599,8 @@ def load_nibabel(url_or_path, **kwargs):
 def from_array(arr, *, fa_kwargs=None, **kwargs):
     r""" Create image from array-like `arr`
 
-    Assume array dimensions correspond to NIfTI labels.
+    Assume array dimensions correspond to NIfTI labels unless otherwise
+    specified with ``dims`` keyword argument.
 
     Parameters
     ----------
@@ -697,8 +717,7 @@ def _filled_coords(coords, dims, shape, attrs):
     # Consider special cases for: hz, ppm, rad
     # https://nifti.nimh.nih.gov/nifti-1/documentation/nifti1fields/nifti1fields_pages/xyzt_units.html
     # Maybe set attrs['xib-time-unts'] from header, and use here.
-    TR = attrs.get("RepetitionTime")
-    if not TR:
+    if not (TR := attrs.get("RepetitionTime")):
         return out_coords
     # Add time axis coordinates.
     n_time = shape[dims.index(_NI_TIME_DIM)]
@@ -710,8 +729,7 @@ def _filled_coords(coords, dims, shape, attrs):
 
 
 def _url2name(url_or_path):
-    name = drop_suffix(url_or_path, _comp_exts())
-    return Path(name).stem
+    return Path(drop_suffix(url_or_path, _comp_exts())).stem
 
 
 def save(obj, url_or_path, format=None, **kwargs):
@@ -733,8 +751,7 @@ def save(obj, url_or_path, format=None, **kwargs):
         Return depends on `format`.  See `save_zarr` and `save_netcdf` for
         examples.
     """
-    if format is None:
-        format = PROCESSORS.guess_format(url_or_path)
+    format = PROCESSORS.guess_format(url_or_path) if format is None else format
     return PROCESSORS.get_saver(format)(obj, url_or_path, **kwargs)
 
 
@@ -767,7 +784,8 @@ def save_netcdf(obj, url_or_path, **kwargs):
     -------
     None
     """
-    _check_netcdf()
+    if not _have_h5netcdf:
+        raise XibFileError('Please install h5netcdf module to save as netCDF')
     out = obj.copy()  # Shallow copy by default.
     out.attrs = _attrs2json_attrs(out.attrs)
     return out.to_netcdf(url_or_path, engine='h5netcdf', **kwargs)
@@ -793,9 +811,7 @@ def save_bids(obj, url_or_path, **kwargs):
     else:
         img_uop = url_or_path
         json_uop = replace_suffix(
-            drop_suffix(url_or_path, _comp_exts()),
-            (),
-            '.json')
+            drop_suffix(url_or_path, _comp_exts()), (), '.json')
     img_file = fsspec.open(img_uop, compression='infer', **kwargs)
     sidecar_kwargs = merge(kwargs, {'mode': 'wt'})
     sidecar_file = img_file.fs.open(json_uop, **sidecar_kwargs)
@@ -812,6 +828,8 @@ def save_bids(obj, url_or_path, **kwargs):
 
 
 class Processors:
+    """ Class to house input-output processors for image formats
+    """
 
     format_processors = {
         'zarr': dict(exts=('ximg',),
@@ -886,6 +904,18 @@ def _ni_sort_expand_dims(img_dims):
 
 
 def to_nifti(ximg):
+    """ Convert `ximg` to equivalent NIfTI image and metadata
+
+    Parameters
+    ----------
+    ximg : Xibabel image
+
+    Returns
+    -------
+    nib_img : NIfTI2 image
+    attrs : dict
+        BIDS-compatible metadata.
+    """
     # Reorient, expand missing dimensions
     order, dims, axes = _ni_sort_expand_dims(ximg.dims)
     ximg = ximg.transpose(*order).expand_dims(dims, axes)
