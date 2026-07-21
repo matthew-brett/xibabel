@@ -1,0 +1,90 @@
+---
+jupyter:
+  jupytext:
+    cell_metadata_filter: -all
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.16.1
+  kernelspec:
+    display_name: Python 3 (ipykernel)
+    language: python
+    name: python3
+---
+
+# Basic read and slice with Xibabel
+
+```{python}
+from pathlib import Path
+
+import xibabel as xib
+
+import matplotlib.pyplot as plt
+plt.rc('image', cmap='gray')
+```
+
+We can load images directly from web URLs:
+
+```{python}
+ximg = xib.load('https://s3.amazonaws.com/openneuro.org/ds000105/sub-1/func/sub-1_task-objectviewing_run-01_bold.nii.gz')
+ximg
+```
+
+Notice that loading automatically picks up BIDS data in corresponding JSON files:
+
+```{python}
+ximg.attrs
+```
+
+Slicing can now use axis labels:
+
+```{python}
+mean_img = ximg.mean('time')
+mean_img
+```
+
+Notice that we haven't yet fetched the data.   We do so only when we need it - for example, when plotting the image data:
+
+```{python}
+plt.imshow(mean_img.sel(k=32))
+```
+
+We may also want to get a local in-memory copy of the image so we don't have to do repeated reads from the source:
+
+```{python}
+ximg_loaded = ximg.compute()
+ximg_loaded
+```
+
+We can save the original image as Zarr format, written with the `.ximg` extension:
+
+```{python}
+xib.save(ximg_loaded, 'out.ximg')
+```
+
+and load it back again:
+
+```{python}
+back = xib.load('out.ximg')
+```
+
+We can convert the Xibabel image to NIfTI in-memory
+thus:
+
+```{python}
+nib_img, attrs = xib.to_nifti(ximg_loaded)
+nib_img
+```
+
+We can also write the image out to BIDS (NIfTI / JSON):
+
+```{python}
+xib.save(ximg_loaded, 'out.nii.gz')
+```
+
+List files in this directory:
+
+```{python}
+sorted(str(p) for p in Path().glob('out*'))
+```
